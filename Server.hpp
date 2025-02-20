@@ -27,6 +27,8 @@ public:
     void handleNickCommand(int client_fd, const std::string& new_nick);
     void handleUserCommand(int client_fd, const std::string& params);
     void handleClientMessage(int client_fd, const std::string& message);
+    void sendToAllClients(const std::string& message, int sender_fd) ;
+
 };
 
 #endif
