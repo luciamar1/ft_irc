@@ -59,11 +59,13 @@ IRCServer::~IRCServer() {
 }
 
 // Aceptar un nuevo cliente
-void IRCServer::acceptClient() {
+void IRCServer::acceptClient() 
+{
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
     int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-    if (client_fd < 0) {
+    if (client_fd < 0) 
+    {
         std::perror("accept");  // Si falla al aceptar la conexión, retorna sin hacer nada
         return;
     }
@@ -80,7 +82,6 @@ void IRCServer::acceptClient() {
         return;
     }
 
-
     buffer[bytes_received] = '\0';
     std::string received_password(buffer);
     received_password.erase(received_password.find_last_not_of("\r\n") + 1);  // Eliminar saltos de línea al final
@@ -95,7 +96,7 @@ void IRCServer::acceptClient() {
     }
 
     
-
+    
     // Si la contraseña es correcta, agregar el cliente a la lista
     struct pollfd pfd;
     pfd.fd = client_fd;
@@ -103,11 +104,28 @@ void IRCServer::acceptClient() {
     clients.push_back(pfd);
 
     clients_info[client_fd] = ""; // Inicializar el nickname del cliente como vacío
+
+    const char *request2 = "Perfect! now enter your nickname:\n";
+    send(client_fd, request2, strlen(request2), 0);
+
+    char buffer2[256];
+    memset(buffer2, 0, sizeof(buffer2));
+    int bytes_received2 = recv(client_fd, buffer2, sizeof(buffer2) - 1, 0);
+    if (bytes_received2 <= 0) {
+        close(client_fd);  // Si no se recibe información, cerrar la conexión
+        return;
+    }
+    std::string _nick(buffer2);
+    _nick.erase(_nick.find_last_not_of("\r\n") + 1); // Eliminar saltos de línea al final
+    _nick.erase(0, _nick.find_first_not_of(" ")); // Eliminar espacios al principio
+    _nick.erase(_nick.find_last_not_of(" ") + 1); 
+    handleNickCommand(client_fd, _nick); 
     std::cout << "New client connected with file descriptor " << client_fd << "." << std::endl;
 }
 
 // Eliminar un cliente
-void IRCServer::removeClient(int client_fd) {
+void IRCServer::removeClient(int client_fd) 
+{
     for (size_t i = 0; i < clients.size(); ++i) {
         if (clients[i].fd == client_fd) {
             close(client_fd);  // Cerrar la conexión del cliente
@@ -120,7 +138,8 @@ void IRCServer::removeClient(int client_fd) {
 }
 
 // Ejecutar el servidor y manejar los eventos
-void IRCServer::run() {
+void IRCServer::run() 
+{
     while (true) {
         // Esperar eventos de entrada de los clientes
         if (poll(&clients[0], clients.size(), -1) < 0) {
@@ -142,7 +161,8 @@ void IRCServer::run() {
 }
 
 // Manejar el comando NICK (cambiar el nickname del cliente)
-void IRCServer::handleNickCommand(int client_fd, const std::string& new_nick) {
+void IRCServer::handleNickCommand(int client_fd, const std::string& new_nick) 
+{
     std::string trimmed_nick = new_nick;
     trimmed_nick.erase(trimmed_nick.find_last_not_of("\r\n") + 1);  // Eliminar saltos de línea
 
@@ -169,7 +189,8 @@ void IRCServer::handleNickCommand(int client_fd, const std::string& new_nick) {
 }
 
 // Manejar los mensajes enviados por los clientes
-void IRCServer::handleClientMessage(int client_fd, const std::string& message) {
+void IRCServer::handleClientMessage(int client_fd, const std::string& message) 
+{
     std::istringstream iss(message);
     std::string command, params;
 
@@ -185,30 +206,27 @@ void IRCServer::handleClientMessage(int client_fd, const std::string& message) {
         handleNickCommand(client_fd, params);  // Cambiar el nickname
     } else if (command == "QUIT") {
         removeClient(client_fd);  // Desconectar al cliente
-    } else {
-        std::string error_msg = "ERROR: Unknown command\n";
-        send(client_fd, error_msg.c_str(), error_msg.length(), 0);  // Comando desconocido
-        std::cout << "Unknown command received from client " << client_fd << ": " << command << std::endl;
-    }
+    } 
+    // else {
+    //     std::string error_msg = "ERROR: Unknown command\n";
+    //     send(client_fd, error_msg.c_str(), error_msg.length(), 0);  // Comando desconocido
+    //     std::cout << "Unknown command received from client " << client_fd << ": " << command << std::endl;
+    // }
 }
 
-
-void IRCServer::sendToAllClients(const std::string& message, int sender_fd) {
-    // Reemplazamos el 'auto' con el tipo del iterador explícito
+void IRCServer::sendToAllClients(const std::string& message, int sender_fd) 
+{
     for (std::map<int, std::string>::const_iterator it = clients_info.begin(); it != clients_info.end(); ++it) {
-        // Usamos 'it->first' para obtener el file descriptor del cliente
         if (it->first != sender_fd) {
-            // Enviar el mensaje a todos los clientes excepto al que envió el mensaje
             send(it->first, message.c_str(), message.size(), 0);
         }
     }
 }
 
 
-// Manejar los datos recibidos de los clientes
 
-
-void IRCServer::handleClientData(int client_fd) {
+void IRCServer::handleClientData(int client_fd)
+{
     char buffer[512];
     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
 
@@ -228,40 +246,25 @@ void IRCServer::handleClientData(int client_fd) {
     if (clients_info.find(client_fd) != clients_info.end() && !clients_info[client_fd].empty()) {
         sender_nick = clients_info[client_fd];  // Usar el nickname si está disponible
     } else {
-    // Si no tiene nickname, usar un mensaje claro con el fd
+        // Si no tiene nickname, usar un mensaje claro con el fd
         std::stringstream ss;
         ss << client_fd;
         sender_nick = "No nickname assigned (fd: " + ss.str() + ")";
     }
 
-    // Formato gráfico para los mensajes
+    // Formatear el mensaje con el nombre del cliente, agregar salto de línea
+    std::string full_message = "[Message from: \033[1;34m" + sender_nick + " \033[0m]: " + message + "\n";
+
+    // Mostrar el mensaje en consola para el servidor con color (solo servidor)
     std::cout << "--------------------------------------------\n";
     std::cout << "[Message from: \033[1;34m" << sender_nick << "\033[0m]\n";  // Nombre en azul o fd
     std::cout << "--------------------------------------------\n";
     std::cout << "\033[1;32m" << message << "\033[0m\n";  // Mensaje en verde
     std::cout << "--------------------------------------------\n";
 
-    // Procesar comandos específicos
-    if (message.find("/quit") == 0) {
-        removeClient(client_fd);  // Comando de desconexión
-    }
-    else if (message.find("/nick") == 0) {
-        // Manejar el cambio de nickname
-        if (message.length() <= 6 || message.substr(6).find_first_not_of(" ") == std::string::npos) {
-            std::string error_msg = "Error: Nickname cannot be empty.\n";
-            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-            return;
-        }
+    // Procesar comandos y mensajes
+    handleClientMessage(client_fd, message);
 
-        std::string new_nick = message.substr(6);
-        
-        // Eliminar espacios adicionales al principio y al final del nickname
-        new_nick.erase(0, new_nick.find_first_not_of(" "));
-        new_nick.erase(new_nick.find_last_not_of(" ") + 1);
-
-        handleNickCommand(client_fd, new_nick);
-    } else {
-        sendToAllClients(message, client_fd);
-        // Puedes manejar otros comandos aquí si lo necesitas
-    }
+    // Enviar el mensaje completo con el nombre del cliente a todos los demás clientes (sin códigos de color)
+    sendToAllClients(full_message, client_fd);
 }
