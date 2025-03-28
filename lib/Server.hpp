@@ -1,34 +1,40 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include <string>
+#include "Client.hpp"
+#include "Channel.hpp"
+#include "Common.hpp"
 #include <vector>
-#include <map>      
-#include <netinet/in.h>
+#include <map>
 #include <poll.h>
 
-class IRCServer {
-private:
-    int server_fd;  // Descriptor del socket del servidor
-    int port;       // Puerto
-    std::string password;  // Contraseña
-    std::vector<struct pollfd> clients; // Lista de clientes conectados
-    std::map<int, std::string> clients_info; // Mapa de clientes con sus nombres
-    std::map<int, std::string> clients_realname; // Mapa de cliente a realname
-
+class Server {
 public:
-    IRCServer(int port, const std::string& password);
-    ~IRCServer();
+    Server(int port, const std::string& password);
+    ~Server();
     
     void run();
-    void acceptClient();
-    void removeClient(int client_fd);
-    void handleClientData(int client_fd);
-    void handleNickCommand(int client_fd, const std::string& new_nick);
-    void handleUserCommand(int client_fd, const std::string& params);
-    void handleClientMessage(int client_fd, const std::string& message);
-    void sendToAllClients(const std::string& message, int sender_fd) ;
+    void removeClient(int clientFd); // Método público
+    const std::string& getPassword() const; // Getter público
 
+private:
+
+    int port;
+    std::string password;
+    int serverFd;
+    std::vector<struct pollfd> pollFds;
+    std::map<int, Client*> clients;
+    std::map<std::string, Channel*> channels;
+
+    void setupServer();
+    void acceptClient();
+    void handleClientInput(int clientFd);
+    void processCommand(Client* client, const std::string& command);
+    void setNonBlocking(int fd);
+    Client* getClientByNick(const std::string& nickname);
+    Channel* getChannel(const std::string& name);
+    void createChannel(const std::string& name, Client* founder);
+    
 };
 
 #endif
