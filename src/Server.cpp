@@ -80,6 +80,7 @@ void IRCServer::acceptClient() {
         return;
     }
 
+
     buffer[bytes_received] = '\0';
     std::string received_password(buffer);
     received_password.erase(received_password.find_last_not_of("\r\n") + 1);  // Eliminar saltos de línea al final
@@ -92,6 +93,8 @@ void IRCServer::acceptClient() {
         std::cout << "Connection attempt failed. Incorrect password entered." << std::endl;
         return;
     }
+
+    
 
     // Si la contraseña es correcta, agregar el cliente a la lista
     struct pollfd pfd;
@@ -189,57 +192,6 @@ void IRCServer::handleClientMessage(int client_fd, const std::string& message) {
     }
 }
 
-// // Manejar los datos recibidos de los clientes
-// void IRCServer::handleClientData(int client_fd) {
-//     char buffer[512];
-//     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-
-//     if (bytes_received <= 0) {
-//         removeClient(client_fd);  // Si no se recibe datos, desconectar al cliente
-//         return;
-//     }
-
-//     buffer[bytes_received] = '\0';
-//     std::string message(buffer);
-
-//     // Eliminar saltos de línea y espacios extra
-//     message.erase(message.find_last_not_of("\r\n") + 1);
-
-//     // Obtener el nickname del cliente
-//     std::string sender_nick = (clients_info.find(client_fd) != clients_info.end()) 
-//                               ? clients_info[client_fd] 
-//                               : "Unknown";
-
-//     std::cout << "Message received from " << sender_nick << ": " << message << std::endl;
-
-//     // Procesar comandos específicos
-//     if (message.find("/quit") == 0) {
-//         removeClient(client_fd);  // Comando de desconexión
-//     }
-//     else if (message.find("/nick") == 0) {
-//         // Manejar el cambio de nickname
-//         if (message.length() <= 6 || message.substr(6).find_first_not_of(" ") == std::string::npos) {
-//             std::string error_msg = "Error: Nickname cannot be empty.\n";
-//             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-//             return;
-//         }
-
-//         std::string new_nick = message.substr(6);
-        
-//         // Eliminar espacios adicionales al principio y al final del nickname
-//         new_nick.erase(0, new_nick.find_first_not_of(" "));
-//         new_nick.erase(new_nick.find_last_not_of(" ") + 1);
-
-//         handleNickCommand(client_fd, new_nick);
-//     }
-// }
-// Manejar los datos recibidos de los clientes
-// Manejar los datos recibidos de los clientes
-// Manejar los datos recibidos de los clientes
-#include <sstream>  // Necesario para std::stringstream
-
-// Manejar los datos recibidos de los clientes
-#include <sstream>  // Necesario para std::stringstream
 
 void IRCServer::sendToAllClients(const std::string& message, int sender_fd) {
     // Reemplazamos el 'auto' con el tipo del iterador explícito
