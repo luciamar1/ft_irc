@@ -6,7 +6,7 @@
 #include <map>      
 #include <netinet/in.h>
 #include <poll.h>
-
+class CommandHandler; 
 class IRCServer {
 private:
     int server_fd;  // Descriptor del socket del servidor
@@ -20,14 +20,15 @@ public:
     IRCServer(int port, const std::string& password);
     ~IRCServer();
     
+    std::map<int, std::string> getClientsInfo();
+    void setClientsInfo(int _client_fd, std::string _nick);
+    
+
     void run();
-    void acceptClient();
+    void acceptClient(CommandHandler &handler);
     void removeClient(int client_fd);
-    void handleClientData(int client_fd);
-    void handleNickCommand(int client_fd, const std::string& new_nick);
-    void handleUserCommand(int client_fd, const std::string& params);
-    void handleClientMessage(int client_fd, const std::string& message);
-    void sendToAllClients(const std::string& message, int sender_fd) ;
+    void handleClientData(int client_fd, CommandHandler &handler);
+
 
 };
 

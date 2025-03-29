@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 
     // Creamos el servidor con el puerto y la contraseña
     IRCServer server(port, password);  // Pasamos el puerto y la contraseña al constructor
-
+    
     server.run();  // Iniciamos el servidor
     return 0;
 }

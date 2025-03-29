@@ -1,0 +1,45 @@
+General Rules
+✅ El programa no debe crashear en ninguna circunstancia.
+✅ Se entrega un Makefile que no relinka innecesariamente.
+✅ El Makefile contiene las reglas: $(NAME), all, clean, fclean, y re.
+✅ Se compila con C++98 y con los flags -Wall -Wextra -Werror.
+✅ Solo se usan funciones permitidas (sin librerías externas ni Boost).
+
+Requisitos Generales
+✅ El servidor escucha en un puerto específico (./ircserv <port> <password>).
+✅ Autenticación con contraseña para conectarse.
+✅ Uso de poll() para manejar clientes simultáneamente (sin fork()).
+✅ Uso de sockets TCP/IP para la comunicación con clientes.
+✅ Compatibilidad con un cliente IRC de referencia (el servidor debe poder conectarse y funcionar como un servidor IRC básico).
+
+Funcionalidades del Servidor
+✅ Manejo de múltiples clientes simultáneamente sin bloqueos.
+✅ Recepción y envío de mensajes a todos los clientes conectados.
+✅ Cada cliente puede establecer un nickname único.
+✅ Los mensajes que envía un cliente aparecen con su nickname en los demás clientes.
+✅ Manejo de desconexiones de clientes (/quit o cierre de conexión).
+
+❌ Implementación de canales (crear, unirse y gestionar canales).
+❌ Mensajes privados (/msg <nickname> <mensaje>).
+❌ Lista de usuarios conectados (/list).
+❌ Implementación de operadores y usuarios regulares.
+❌ Comandos de operador de canal:
+
+❌ KICK - Expulsar a un usuario del canal.
+
+❌ INVITE - Invitar a un usuario a un canal.
+
+❌ TOPIC - Cambiar o ver el tema del canal.
+
+❌ MODE - Cambiar configuraciones del canal (i, t, k, o, l).
+
+Extras y Mejoras
+✅ Mensajes con colores y formato en la consola del servidor.
+✅ Corrección de errores en comandos desconocidos (ERROR: Unknown command).
+✅ Servidor no crashea en errores de conexión o clientes desconectados.
+❌ Gestión de mensajes divididos en varios paquetes (prueba con nc -C 127.0.0.1 6667).
+❌ Mejor manejo de errores y validaciones en los comandos (/nick, /msg, etc.).
+
+
+
+
