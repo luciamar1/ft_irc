@@ -25,11 +25,19 @@ public:
     
 
     void run();
-    void acceptClient(CommandHandler &handler);
-    void removeClient(int client_fd);
+
+    
     void handleClientData(int client_fd, CommandHandler &handler);
+    
+    void acceptClient(CommandHandler) ;
+    int requestPassword(int client_fd) ;
+    int requestNickname(int client_fd,  std::string &nickname) ;
 
+    int nickExist(std::string _nick);
+    // void sanitizeInput(std::string &input) ;
+    // bool isValidNickname(const std::string &nick) ;
 
+    void removeClient(int client_fd);
 };
 
 #endif

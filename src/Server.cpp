@@ -72,8 +72,95 @@ void IRCServer::setClientsInfo(int _client_fd, std::string _nick)
 }
 
 
+int    IRCServer::requestPassword(int client_fd) 
+{
+    // Enviar mensaje de bienvenida y solicitar la contraseña
+    const char *request = "Welcome to the IRC Server! Please enter the password:\n";
+    send(client_fd, request, strlen(request), 0);
+
+    char buffer[256];
+    memset(buffer, 0, sizeof(buffer));
+    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytes_received <= 0) {
+        close(client_fd);  // Si no se recibe información, cerrar la conexión
+        return 0;
+    }
+
+    buffer[bytes_received] = '\0';
+    std::string received_password(buffer);
+    received_password.erase(received_password.find_last_not_of("\r\n") + 1);  // Eliminar saltos de línea al final
+
+     // Verificar la contraseña
+     if (received_password != password) {
+        const char *error_msg = "Incorrect password. Connection closed.\n";
+        send(client_fd, error_msg, strlen(error_msg), 0);  // Enviar error si la contraseña es incorrecta
+        close(client_fd);  // Cerrar la conexión del cliente
+        std::cout << "Connection attempt failed. Incorrect password entered." << std::endl;
+        return 0;
+    }
+    return 1;
+
+}
+
+int IRCServer::nickExist(std::string _nick)
+{
+    for (std::map<int, std::string>::iterator it = getClientsInfo().begin(); it != getClientsInfo().end(); ++it) 
+    {
+        if (it->second == _nick) 
+            return 1;
+    }
+    return 0;
+}
+
+int IRCServer::requestNickname(int client_fd, std::string &nickname) 
+{
+    int attempts = 3;
+    char buffer[256];
+
+    while (attempts--) 
+    {
+        const char *request = "Please enter your nickname:\n";
+        send(client_fd, request, strlen(request), 0);
+        // Pedir al usuario su nickname
+
+        memset(buffer, 0, sizeof(buffer));  // Limpiar el buffer
+        int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received <= 0) 
+        {
+            close(client_fd);  // Si no responde, cerramos conexión
+            return 0;
+        }
+
+        buffer[bytes_received] = '\0';
+        std::string _nick(buffer);
+
+        // Limpiar espacios y saltos de línea
+        _nick.erase(_nick.find_last_not_of("\r\n") + 1);  
+        _nick.erase(0, _nick.find_first_not_of(" ")); 
+        _nick.erase(_nick.find_last_not_of(" ") + 1); 
+
+        if(!_nick.empty() && !nickExist(_nick))
+        {
+            nickname = _nick;
+            return 1;  // Nick válido
+        }
+        if(nickExist(_nick))
+        {
+            const char *request = "Error that nick is in use.\n";
+            send(client_fd, request, strlen(request), 0);
+        }
+    }
+
+    // Si agotó los intentos
+    const char *error_msg = "You have exceeded the attempts to enter the nickname. Connection closed.\n";
+    send(client_fd, error_msg, strlen(error_msg), 0);
+    close(client_fd);
+    return 0;
+}
+    
+
 // Aceptar un nuevo cliente
-void IRCServer::acceptClient(CommandHandler &handler) 
+void IRCServer::acceptClient(CommandHandler) 
 {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -84,73 +171,61 @@ void IRCServer::acceptClient(CommandHandler &handler)
         return;
     }
 
-    // Enviar mensaje de bienvenida y solicitar la contraseña
-    const char *request = "Welcome to the IRC Server! Please enter the password:\n";
-    send(client_fd, request, strlen(request), 0);
-
-    char buffer[256];
-    memset(buffer, 0, sizeof(buffer));
-    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received <= 0) {
-        close(client_fd);  // Si no se recibe información, cerrar la conexión
+    
+    if (requestPassword(client_fd) == 0)
         return;
-    }
+    
+    std::string nickname;
 
-    buffer[bytes_received] = '\0';
-    std::string received_password(buffer);
-    received_password.erase(received_password.find_last_not_of("\r\n") + 1);  // Eliminar saltos de línea al final
-
-    // Verificar la contraseña
-    if (received_password != password) {
-        const char *error_msg = "Incorrect password. Connection closed.\n";
-        send(client_fd, error_msg, strlen(error_msg), 0);  // Enviar error si la contraseña es incorrecta
-        close(client_fd);  // Cerrar la conexión del cliente
-        std::cout << "Connection attempt failed. Incorrect password entered." << std::endl;
+    if(requestNickname(client_fd, nickname) == 0)
         return;
-    }
-
     
     
-    // Si la contraseña es correcta, agregar el cliente a la lista
+    // Si la contraseña  y el nick son correctos, agregar el cliente a la lista
     struct pollfd pfd;
     pfd.fd = client_fd;
     pfd.events = POLLIN;
     clients.push_back(pfd);
 
-    clients_info[client_fd] = ""; // Inicializar el nickname del cliente como vacío
-
-    const char *request2 = "Perfect! now enter your nickname:\n";
-    send(client_fd, request2, strlen(request2), 0);
-
-    char buffer2[256];
-    memset(buffer2, 0, sizeof(buffer2));
-    int bytes_received2 = recv(client_fd, buffer2, sizeof(buffer2) - 1, 0);
-    if (bytes_received2 <= 0) {
-        close(client_fd);  // Si no se recibe información, cerrar la conexión
-        return;
-    }
-    std::string _nick(buffer2);
-    _nick.erase(_nick.find_last_not_of("\r\n") + 1); // Eliminar saltos de línea al final
-    _nick.erase(0, _nick.find_first_not_of(" ")); // Eliminar espacios al principio
-    _nick.erase(_nick.find_last_not_of(" ") + 1); 
-
-    handler.handleNickCommand(client_fd, _nick, this); 
-    std::cout << "New client connected with file descriptor " << client_fd << "." << std::endl;
+    clients_info[client_fd] = nickname; // Inicializar el nickname del cliente como vacío
+    std::cout << "New client "<< nickname << " connected with file descriptor " << client_fd << "." << std::endl;
+   
 }
 
 // Eliminar un cliente
+// void IRCServer::removeClient(int client_fd) 
+// {
+//     for (size_t i = 0; i < clients.size(); ++i) {
+//         if (clients[i].fd == client_fd) {
+//             std::cout << "Client "<< this->clients_info[client_fd]<< " with file descriptor " << client_fd << " has disconnected." << std::endl;
+//             close(client_fd);  // Cerrar la conexión del cliente
+//             clients.erase(clients.begin() + i);  // Eliminar el cliente de la lista
+//             clients_info.erase(client_fd);  // Eliminar el nickname del cliente
+//             break;
+//         }
+//     }
+// }
+
 void IRCServer::removeClient(int client_fd) 
 {
     for (size_t i = 0; i < clients.size(); ++i) {
         if (clients[i].fd == client_fd) {
+            if (this->clients_info.find(client_fd) != this->clients_info.end()) {
+                std::cout << "Client " << this->clients_info[client_fd] 
+                          << " with file descriptor " << client_fd << " has disconnected." << std::endl;
+            } else {
+                std::cout << "Client with file descriptor " << client_fd 
+                          << " has disconnected, but no nickname found!" << std::endl;
+            }
+
             close(client_fd);  // Cerrar la conexión del cliente
             clients.erase(clients.begin() + i);  // Eliminar el cliente de la lista
             clients_info.erase(client_fd);  // Eliminar el nickname del cliente
-            std::cout << "Client with file descriptor " << client_fd << " has disconnected." << std::endl;
             break;
         }
     }
 }
+
 
 // Ejecutar el servidor y manejar los eventos
 void IRCServer::run() 
@@ -219,8 +294,8 @@ void IRCServer::handleClientData(int client_fd, CommandHandler &handler)
     std::cout << "--------------------------------------------\n";
 
     // Procesar comandos y mensajes
-    handler.handleClientMessage(client_fd, message, this);
+    handler.handleClientMessage(client_fd, message, *this);
 
     // Enviar el mensaje completo con el nombre del cliente a todos los demás clientes (sin códigos de color)
-    handler.sendToAllClients(full_message, client_fd, this);
+    handler.sendToAllClients(full_message, client_fd, *this);
 }
