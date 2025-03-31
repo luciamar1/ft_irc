@@ -19,6 +19,7 @@ Funcionalidades del Servidor
 ✅ Los mensajes que envía un cliente aparecen con su nickname en los demás clientes.
 ✅ Manejo de desconexiones de clientes (/quit o cierre de conexión).
 
+❌ revisar requisitos para conectarse al servidor
 ❌ Implementación de canales (crear, unirse y gestionar canales).
 ❌ Mensajes privados (/msg <nickname> <mensaje>).
 ❌ Lista de usuarios conectados (/list).
