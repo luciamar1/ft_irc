@@ -17,9 +17,9 @@ class CommandHandler {
 public:
     CommandHandler();
     ~CommandHandler();
-    void handleNickCommand(int client_fd, const std::string& new_nick, IRCServer &server );
-    void handleClientMessage(int client_fd, const std::string& message, IRCServer &server ) ;
-    void sendToAllClients(const std::string& message, int sender_fd, IRCServer &server) ;
+    void handleNickCommand(int client_fd, const std::string& new_nick, IRCServer *server );
+    void handleClientMessage(int client_fd, const std::string& message, IRCServer *server ) ;
+    void sendToAllClients(const std::string& message, int sender_fd, IRCServer *server) ;
 
 };
 #endif

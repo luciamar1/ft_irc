@@ -20,7 +20,7 @@ public:
     IRCServer(int port, const std::string& password);
     ~IRCServer();
     
-    std::map<int, std::string> getClientsInfo();
+    std::map<int, std::string>& getClientsInfo();  
     void setClientsInfo(int _client_fd, std::string _nick);
     
 

@@ -61,7 +61,7 @@ IRCServer::~IRCServer() {
     std::cout << "Server has shut down. All client connections have been closed." << std::endl;
 }
 
-std::map<int, std::string> IRCServer::getClientsInfo()
+std::map<int, std::string>& IRCServer::getClientsInfo()
 {
     return clients_info;
 }
@@ -134,7 +134,7 @@ void IRCServer::acceptClient(CommandHandler &handler)
     _nick.erase(0, _nick.find_first_not_of(" ")); // Eliminar espacios al principio
     _nick.erase(_nick.find_last_not_of(" ") + 1); 
 
-    handler.handleNickCommand(client_fd, _nick, *this); 
+    handler.handleNickCommand(client_fd, _nick, this); 
     std::cout << "New client connected with file descriptor " << client_fd << "." << std::endl;
 }
 
@@ -158,6 +158,7 @@ void IRCServer::run()
     CommandHandler handler;
     while (true) {
         // Esperar eventos de entrada de los clientes
+        if (clients.empty()) continue; 
         if (poll(&clients[0], clients.size(), -1) < 0) {
             std::perror("poll");  // Si hay error en poll, continuamos
             continue;
@@ -218,8 +219,8 @@ void IRCServer::handleClientData(int client_fd, CommandHandler &handler)
     std::cout << "--------------------------------------------\n";
 
     // Procesar comandos y mensajes
-    handler.handleClientMessage(client_fd, message, *this);
+    handler.handleClientMessage(client_fd, message, this);
 
     // Enviar el mensaje completo con el nombre del cliente a todos los demás clientes (sin códigos de color)
-    handler.sendToAllClients(full_message, client_fd, *this);
+    handler.sendToAllClients(full_message, client_fd, this);
 }
