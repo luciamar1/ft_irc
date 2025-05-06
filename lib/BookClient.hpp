@@ -1,0 +1,25 @@
+#ifndef BOOK_CLIENT_HPP
+#define BOOK_CLIENT_HPP
+
+#include <map>
+#include "Client.hpp"
+
+class BookClient 
+{
+    private:
+        std::map<int, Client *> clients;
+
+    public:
+        BookClient();
+        ~BookClient();
+        bool    addClient(int fd, std::string _nick, AuthStage stage);
+        void    removeClient(int fd);
+        bool    nickExists(const std::string& nick);
+        bool    fdExists(int fd);
+
+        Client* getClient(int fd);
+        std::map<int, Client *>&    getmap();
+        void printbook();
+};
+
+#endif

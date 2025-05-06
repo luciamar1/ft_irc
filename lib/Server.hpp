@@ -1,43 +1,42 @@
-#ifndef SERVER_HPP
-#define SERVER_HPP
+#ifndef IRC_SERVER_HPP
+#define IRC_SERVER_HPP
 
 #include <string>
 #include <vector>
-#include <map>      
-#include <netinet/in.h>
 #include <poll.h>
-class CommandHandler; 
+#include "CommandHandler.hpp"
+#include "BookClient.hpp"  // Incluimos la clase Book
+class CommandHandler;
+// Definición de la clase IRCServer
 class IRCServer {
-private:
-    int server_fd;  // Descriptor del socket del servidor
-    int port;       // Puerto
-    std::string password;  // Contraseña
-    std::vector<struct pollfd> clients; // Lista de clientes conectados
-    std::map<int, std::string> clients_info; // Mapa de clientes con sus nombres
-    std::map<int, std::string> clients_realname; // Mapa de cliente a realname
-
+    private:
+        // Atributos del servidor
+        int server_fd;  // Descriptor de archivo para el socket del servidor
+        int port;       // Puerto en el que el servidor escucha
+        std::string password;  // Contraseña del servidor
+        std::vector<struct pollfd> clients;  // Lista de clientes conectados
+        BookClient clients_info;  // Usamos Book para almacenar la información de los clientes
 public:
+    // Constructor y Destructor
     IRCServer(int port, const std::string& password);
     ~IRCServer();
-    
-    std::map<int, std::string>& getClientsInfo();  
-    void setClientsInfo(int _client_fd, std::string _nick);
-    
 
+    // Métodos para manejar clientes y mensajes
+    void acceptClient();
+    void removeClient(int client_fd);
+    void handleClientData(int client_fd, CommandHandler& handler);
     void run();
 
-    
-    void handleClientData(int client_fd, CommandHandler &handler);
-    
-    void acceptClient(CommandHandler) ;
-    int requestPassword(int client_fd) ;
-    int requestNickname(int client_fd,  std::string &nickname) ;
-
+    // Métodos de interacción con clientes
+    int requestPassword(int client_fd);
+    int requestNickname(int client_fd, std::string &nickname);
     int nickExist(std::string _nick);
-    // void sanitizeInput(std::string &input) ;
-    // bool isValidNickname(const std::string &nick) ;
 
-    void removeClient(int client_fd);
+    BookClient&  getBook();
+
+
+    // Métodos para obtener y configurar información de clientes
+
 };
 
-#endif
+#endif  // IRC_SERVER_HPP
