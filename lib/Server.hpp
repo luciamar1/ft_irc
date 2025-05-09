@@ -6,6 +6,8 @@
 #include <poll.h>
 #include "CommandHandler.hpp"
 #include "BookClient.hpp"  // Incluimos la clase Book
+#include "ChannelBook.hpp"
+
 class CommandHandler;
 // Definición de la clase IRCServer
 class IRCServer {
@@ -16,6 +18,8 @@ class IRCServer {
         std::string password;  // Contraseña del servidor
         std::vector<struct pollfd> clients;  // Lista de clientes conectados
         BookClient clients_info;  // Usamos Book para almacenar la información de los clientes
+        ChannelBook channels;
+    
 public:
     // Constructor y Destructor
     IRCServer(int port, const std::string& password);
@@ -28,11 +32,10 @@ public:
     void run();
 
     // Métodos de interacción con clientes
-    int requestPassword(int client_fd);
-    int requestNickname(int client_fd, std::string &nickname);
     int nickExist(std::string _nick);
 
-    BookClient&  getBook();
+    BookClient&  getClientsBook();
+    ChannelBook&  getChannelsBook();
 
 
     // Métodos para obtener y configurar información de clientes

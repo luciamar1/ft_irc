@@ -1,13 +1,24 @@
 #include "BookClient.hpp"
 #include <iostream>
 
-bool BookClient::addClient(int fd, std::string _nick, AuthStage stage) 
+bool BookClient::addClient(int fd, std::string nick, AuthStage stage) 
 {
     if (clients.find(fd) != clients.end())
         return false;
-    clients[fd] = new Client(fd, _nick, stage);
+
+    try 
+    {
+        clients[fd] = new Client(fd, nick, stage);
+    } 
+    catch (const std::bad_alloc& e) 
+    {
+        std::cerr << "Error: could not allocate memory for new Client: " << e.what() << std::endl;
+        removeClient(fd); 
+        return(false);
+    }
     return true;
 }
+
 
 void BookClient::printbook()
 {

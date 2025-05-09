@@ -2,6 +2,7 @@
 #define CLIENT_HPP
 
 #include <string>
+#include <set>
 
 enum AuthStage 
 {
@@ -17,6 +18,7 @@ private:
     std::string buffer;
     std::string realname;
     AuthStage stage;
+    std::set<std::string> joinedChannels;
 
 public:
     Client();
@@ -35,6 +37,11 @@ public:
     void setRealname(const std::string& name);
 
     std::string& getBuffer();
+
+    void joinChannel(const std::string& channelName);
+    void leaveChannel(const std::string& channelName);
+    bool isInChannel(const std::string& channelName) const;
+    const std::set<std::string>& getJoinedChannels() const;
 
 };
 

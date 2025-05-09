@@ -46,3 +46,19 @@ void Client::setStage(AuthStage s)
 { 
     stage = s; 
 }
+
+void Client::joinChannel(const std::string& channelName) {
+    joinedChannels.insert(channelName);
+}
+
+void Client::leaveChannel(const std::string& channelName) {
+    joinedChannels.erase(channelName);
+}
+
+bool Client::isInChannel(const std::string& channelName) const {
+    return joinedChannels.find(channelName) != joinedChannels.end();
+}
+
+const std::set<std::string>& Client::getJoinedChannels() const {
+    return joinedChannels;
+}
