@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <sys/socket.h> 
 
 class Client; // forward declaration
 
@@ -58,6 +59,10 @@ public:
 	bool isInvited(Client* client) const;
 
 	const std::set<Client*>& getClients() const;
+
+	void sendToAll(const std::string& message, Client* sender);
+
+	
 };
 
 #endif

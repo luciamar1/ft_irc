@@ -11,7 +11,7 @@ class ChannelBook {
         std::map<std::string, Channel*> _channels;
 public:
     Channel* getChannel(const std::string& name);
-    void addChannel(const std::string& name, Channel* channel);
+    bool addChannel(const std::string& name, Channel* channel);
     void removeChannel(const std::string& name);
     bool channelExists(const std::string& name) const;
     std::map<std::string, Channel*>& getAllChannels();

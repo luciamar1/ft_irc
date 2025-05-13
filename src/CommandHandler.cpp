@@ -34,20 +34,20 @@ void CommandHandler::handleNickCommand(int client_fd, const std::string& new_nic
         return;
     }
 
-    if(server.getClienstBook().nickExists(_nick))
+    if(server.getClientsBook().nickExists(_nick))
     {
             std::string error_msg = "ERROR: Nickname already in use.\n";
             send(client_fd, error_msg.c_str(), error_msg.length(), 0);
             return;
     }
 
-    if (!server.getClienstBook().fdExists(client_fd) ) 
+    if (!server.getClientsBook().fdExists(client_fd) ) 
     {
         std::cout << "NO EXISTE FD" << std::endl;
         std::cerr << "ERROR: No client found with fd " << client_fd << std::endl;
         return;
     }
-    Client* client = server.getClienstBook().getClient(client_fd);
+    Client* client = server.getClientsBook().getClient(client_fd);
     if (!client) 
     {
         std::cerr << "ERROR: Client pointer is NULL for fd " << client_fd << std::endl;
@@ -78,7 +78,10 @@ void CommandHandler::handleClientMessage(int client_fd, const std::string& messa
         handleNickCommand(client_fd, params, server);  // Cambiar el nickname
     } else if (command == "QUIT") {
         server.removeClient(client_fd);  // Desconectar al cliente
-    } 
+    } else if (command == "JOIN") {
+        handleJoinCommand(client_fd, params, server);  // Unirse a un canal
+    }  
+
   
 }
 
@@ -88,7 +91,7 @@ void CommandHandler::sendToAllClients(const std::string& message, int sender_fd,
 {
    
     
-    const std::map<int, Client*>& clients = server.getClienstBook().getmap();
+    const std::map<int, Client*>& clients = server.getClientsBook().getmap();
     for (std::map<int, Client*>::const_iterator it = clients.begin(); it != clients.end(); ++it) {
         Client* client = it->second;
 
@@ -98,6 +101,7 @@ void CommandHandler::sendToAllClients(const std::string& message, int sender_fd,
         }
     }
 }
+
 
 void CommandHandler::handleJoinCommand(int client_fd, const std::string& channel_name_raw, IRCServer& server)
 {
@@ -117,27 +121,36 @@ void CommandHandler::handleJoinCommand(int client_fd, const std::string& channel
         std::cerr << "ERROR: Client not found for fd " << client_fd << std::endl;
         return;
     }
-    Channel* channel = server.getChannelsBook().getChannel(channel_name);
-    if (!channel) {
-        channel = new Channel(channel_name);
-        server.getChannelsBook().addChannel(channel_name, channel);
-        channel->addOperator(client);
+    server.getChannelsBook().addChannel(channel_name);
+    Channel* channel = 
+    if (channel->getClients().empty()) {
+        channel->addOperator(client);  // Primer usuario es operador
     }
 
     if (!channel->hasClient(client)) {
         channel->addClient(client);
-        client->joinChannel(channel); // Asume que Client tiene joinChannel(Channel*)
-        
-        std::string join_msg = ":" + client->getNickname() + " JOIN " + channel_name + "\r\n";
-        channel->sendToAll(join_msg); // Envía a todos los miembros del canal
+        client->joinChannel(channel_name);
 
-        // Opcional: mandar topic si existe
+        std::string join_msg = ":" + client->getNickname() + " JOIN " + channel_name + "\r\n";
+        channel->sendToAll(join_msg, client);
+
         if (!channel->getTopic().empty()) {
             std::string topic_msg = "332 " + client->getNickname() + " " + channel_name + " :" + channel->getTopic() + "\r\n";
             send(client_fd, topic_msg.c_str(), topic_msg.length(), 0);
         }
-    }
-    else {
+
+        // Enviar lista de usuarios en el canal
+        std::string users;
+        const std::set<Client*>& members = channel->getClients();
+        for (std::set<Client*>::const_iterator it = members.begin(); it != members.end(); ++it) {
+            users += (*it)->getNickname() + " ";
+        }
+        std::string names_reply = "353 " + client->getNickname() + " = " + channel_name + " :" + users + "\r\n";
+        std::string end_reply = "366 " + client->getNickname() + " " + channel_name + " :End of /NAMES list.\r\n";
+
+        send(client_fd, names_reply.c_str(), names_reply.length(), 0);
+        send(client_fd, end_reply.c_str(), end_reply.length(), 0);
+    } else {
         std::string msg = "You're already in that channel.\n";
         send(client_fd, msg.c_str(), msg.length(), 0);
     }

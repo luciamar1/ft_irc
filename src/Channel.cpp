@@ -100,3 +100,22 @@ bool Channel::isInvited(Client* client) const {
 const std::set<Client*>& Channel::getClients() const {
 	return _clients;
 }
+
+
+
+void Channel::sendToAll(const std::string& message, Client* sender)
+{
+    for (std::set<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) 
+	{
+        Client* client = *it;
+
+        if (client == NULL)
+            continue;
+
+        // Si hay sender, y el cliente es el sender, lo saltamos
+        if (sender && client->getFd() == sender->getFd())
+            continue;
+
+        send(client->getFd(), message.c_str(), message.length(), 0);
+    }
+}
