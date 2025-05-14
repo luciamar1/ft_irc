@@ -121,13 +121,24 @@ void CommandHandler::handleJoinCommand(int client_fd, const std::string& channel
         std::cerr << "ERROR: Client not found for fd " << client_fd << std::endl;
         return;
     }
-    server.getChannelsBook().addChannel(channel_name);
-    Channel* channel = 
-    if (channel->getClients().empty()) {
-        channel->addOperator(client);  // Primer usuario es operador
+    //AÑADIMOS EL CANAL EN EL CASO DE QUE TODAVIA NO ESTE EN BOOK
+    if(server.getChannelsBook().addChannel(channel_name) == false)
+    {
+        return ;
     }
 
-    if (!channel->hasClient(client)) {
+    Channel* channel = server.getChannelsBook().getChannel(channel_name);
+
+
+    if (channel->getClients().empty()) 
+    {
+        channel->addOperator(client);  // Primer usuario es operador
+        channel->addClient(client);
+        client->joinChannel(channel_name);
+    }
+
+    else if (!channel->hasClient(client)) 
+    {
         channel->addClient(client);
         client->joinChannel(channel_name);
 
@@ -143,14 +154,16 @@ void CommandHandler::handleJoinCommand(int client_fd, const std::string& channel
         std::string users;
         const std::set<Client*>& members = channel->getClients();
         for (std::set<Client*>::const_iterator it = members.begin(); it != members.end(); ++it) {
-            users += (*it)->getNickname() + " ";
+            users += "\n" + (*it)->getNickname();
         }
         std::string names_reply = "353 " + client->getNickname() + " = " + channel_name + " :" + users + "\r\n";
         std::string end_reply = "366 " + client->getNickname() + " " + channel_name + " :End of /NAMES list.\r\n";
 
         send(client_fd, names_reply.c_str(), names_reply.length(), 0);
         send(client_fd, end_reply.c_str(), end_reply.length(), 0);
-    } else {
+    } 
+    else 
+    {
         std::string msg = "You're already in that channel.\n";
         send(client_fd, msg.c_str(), msg.length(), 0);
     }

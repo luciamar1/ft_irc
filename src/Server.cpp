@@ -275,7 +275,7 @@ void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
             std::cout << "--------------------------------------------\n";
 
             handler.handleClientMessage(client_fd, line, *this);
-            handler.sendToAllClients(full_message, client_fd, *this);
+            //handler.sendToAllClients(full_message, client_fd, *this);
         }
     }
 }

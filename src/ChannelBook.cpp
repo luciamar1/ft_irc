@@ -10,7 +10,8 @@ Channel* ChannelBook::getChannel(const std::string& name) {
 bool ChannelBook::addChannel(const std::string& name) 
 {
     if (_channels.find(name) != _channels.end())
-        return false;
+    
+        return true;
 
     try 
     {

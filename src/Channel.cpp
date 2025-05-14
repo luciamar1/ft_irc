@@ -103,19 +103,35 @@ const std::set<Client*>& Channel::getClients() const {
 
 
 
+// void Channel::sendToAll(const std::string& message, Client* sender)
+// {
+//     for (std::set<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) 
+// 	{
+//         Client* client = *it;
+
+//         if (client == NULL)
+//             continue;
+
+//         // Si hay sender, y el cliente es el sender, lo saltamos
+//         if (sender && client->getFd() == sender->getFd())
+//             continue;
+
+//         send(client->getFd(), message.c_str(), message.length(), 0);
+//     }
+// }
 void Channel::sendToAll(const std::string& message, Client* sender)
 {
     for (std::set<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) 
-	{
+    {
         Client* client = *it;
 
-        if (client == NULL)
+        if (sender && client == sender)
             continue;
 
-        // Si hay sender, y el cliente es el sender, lo saltamos
-        if (sender && client->getFd() == sender->getFd())
-            continue;
-
-        send(client->getFd(), message.c_str(), message.length(), 0);
+        ssize_t bytes_sent = send(client->getFd(), message.c_str(), message.length(), 0);
+        if (bytes_sent == -1) {
+            std::cerr << "Failed to send message to fd " << client->getFd() << std::endl;
+            // opcional: puedes marcar al cliente como desconectado, etc.
+        }
     }
 }
