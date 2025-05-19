@@ -8,6 +8,7 @@ enum AuthStage
 {
     WAITING_PASSWORD,
     WAITING_NICKNAME,
+    WAITING_USERNAME,
     CONNECTED
 };
 
@@ -15,14 +16,14 @@ class Client {
 private:
     int fd;
     std::string nickname;
-    std::string buffer;
     std::string realname;
+    std::string buffer;
     AuthStage stage;
     std::set<std::string> joinedChannels;
 
 public:
     Client();
-    Client(int fd, std::string _nick, AuthStage _stage = WAITING_PASSWORD);
+    Client(int fd, std::string _nick,std::string _user,  AuthStage _stage = WAITING_PASSWORD);
 
     int getFd() const;
     void setFd(int _fd);

@@ -100,7 +100,7 @@ void IRCServer::acceptClient()
     clients.push_back(pfd);
 
     // Añadir cliente en estado de espera de contraseña
-    clients_info.addClient(client_fd, "", WAITING_PASSWORD);
+    clients_info.addClient(client_fd, "", "", WAITING_PASSWORD);
 
     const char* welcome_msg = "Welcome to the IRC Server! Please enter the password:\n";
     send(client_fd, welcome_msg, strlen(welcome_msg), 0);
@@ -155,61 +155,6 @@ void IRCServer::run() {
 }
 
 
-// // Manejar los datos del cliente
-// void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
-//     char buffer[512];
-   
-//     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-//     if (bytes_received < 0) {
-//         if (errno == EAGAIN || errno == EWOULDBLOCK)
-//             return;  // No hay datos ahora
-//         std::perror("recv handleClientData");
-//         removeClient(client_fd);
-//         return;
-//     }
-//     if (bytes_received == 0) {
-//         removeClient(client_fd);
-//         return;
-//     }
-
-
-//     buffer[bytes_received] = '\0';
-//     Client* client = clients_info.getClient(client_fd);
-//     if (!client) return;
-
-//     // Añadir datos al buffer acumulado del cliente
-//     client->getBuffer() += buffer;
-
-//     size_t pos;
-//     while ((pos = client->getBuffer().find('\n')) != std::string::npos) {
-//         std::string line = client->getBuffer().substr(0, pos);
-//         client->getBuffer().erase(0, pos + 1);
-
-//         line.erase(line.find_last_not_of("\r\n") + 1);
-
-//         std::string sender_nick = client->getNickname();
-//         if (sender_nick.empty()) {
-//             std::ostringstream oss;
-//             oss << client_fd;
-//             sender_nick = "fd" + oss.str();
-//         }
-
-//         std::string full_message = "[Message from: " + sender_nick + "]: " + line + "\n";
-
-//         std::cout << "--------------------------------------------\n";
-//         std::cout << "[Message from: \033[1;34m" << sender_nick << "\033[0m]\n";
-//         std::cout << "--------------------------------------------\n";
-//         std::cout << "\033[1;32m" << line << "\033[0m\n";
-//         std::cout << "--------------------------------------------\n";
-
-//         handler.handleClientMessage(client->getFd(), line, *this);
-
-//         if (client->getStage() == CONNECTED) 
-//         {
-//             handler.sendToAllClients(full_message, client_fd, *this);
-//         }
-//     }
-// }
 
 void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
     char buffer[512];
@@ -258,11 +203,27 @@ void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
                 return;
             }
             client->setNickname(line);
+            client->setStage(WAITING_USERNAME);
+            send(client_fd, "Please enter your real name:\n", 29, 0);
+            return;
+        }
+
+        if (client->getStage() == WAITING_USERNAME)
+        {
+            line.erase(0, line.find_first_not_of(" "));
+            line.erase(line.find_last_not_of(" ") + 1);
+            if (line.empty() ) {
+                send(client_fd, "Empty username. Try again:\n", 38, 0);
+                return;
+            }
+            client->setRealname(line);
             client->setStage(CONNECTED);
             std::cout << "New client " << line << " connected with fd " << client_fd << ".\n";
             send(client_fd, "You have successfully authenticated and joined the server.\n", 60, 0);
             return;
         }
+
+
 
         if (client->getStage() == CONNECTED) {
             std::string sender_nick = client->getNickname();

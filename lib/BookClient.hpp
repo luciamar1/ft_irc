@@ -12,7 +12,7 @@ class BookClient
     public:
         BookClient();
         ~BookClient();
-        bool addClient(int fd, std::string nick, AuthStage stage) ;
+        bool addClient(int fd, std::string nick, std::string user, AuthStage stage) ;
         void    removeClient(int fd);
         bool    nickExists(const std::string& nick);
         bool    fdExists(int fd);

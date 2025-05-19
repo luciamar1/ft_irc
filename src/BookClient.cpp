@@ -1,14 +1,14 @@
 #include "BookClient.hpp"
 #include <iostream>
 
-bool BookClient::addClient(int fd, std::string nick, AuthStage stage) 
+bool BookClient::addClient(int fd, std::string nick, std::string user, AuthStage stage) 
 {
     if (clients.find(fd) != clients.end())
         return false;
 
     try 
     {
-        clients[fd] = new Client(fd, nick, stage);
+        clients[fd] = new Client(fd, nick, user, stage);
     } 
     catch (const std::bad_alloc& e) 
     {

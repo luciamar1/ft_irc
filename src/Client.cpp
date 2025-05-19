@@ -4,8 +4,8 @@ Client::Client() : fd(-1), nickname(""), realname("") {}
 
 // Client::Client(int fd, std::string _nick) : fd(fd), nickname(_nick), realname("") {}
 
-Client::Client(int fd, std::string nick, AuthStage stage )
-    : fd(fd), nickname(nick), buffer(""), stage(stage) {}
+Client::Client(int fd, std::string _nick, std::string _user, AuthStage stage )
+    : fd(fd), nickname(_nick), realname(_user),buffer(""), stage(stage) {}
 
 std::string& Client::getBuffer() 
 { 
