@@ -1,0 +1,225 @@
+#ifndef BOOK_CLIENT_HPP
+#define BOOK_CLIENT_HPP
+
+#include <map>
+#include "Client.hpp"
+
+class BookClient 
+{
+    private:
+        std::map<int, Client *> clients;
+
+    public:
+        BookClient();
+        ~BookClient();
+        bool addClient(int fd, std::string nick, AuthStage stage) ;
+        void    removeClient(int fd);
+        bool    nickExists(const std::string& nick);
+        bool    fdExists(int fd);
+
+        Client* getClient(int fd);
+        std::map<int, Client *>&    getmap();
+        void printbook();
+};
+
+#endif
+#ifndef CHANNELBOOK_HPP
+#define CHANNELBOOK_HPP
+
+#include <map>
+#include <string>
+#include "Channel.hpp"
+
+class ChannelBook {
+    
+    private:
+        std::map<std::string, Channel*> _channels;
+public:
+    Channel* getChannel(const std::string& name);
+    bool addChannel(const std::string& name);
+    void removeChannel(const std::string& name);
+    bool channelExists(const std::string& name) const;
+    std::map<std::string, Channel*>& getAllChannels();
+};
+
+#endif
+
+// Channel.hpp
+#ifndef CHANNEL_HPP
+#define CHANNEL_HPP
+
+#include <string>
+#include <map>
+#include <set>
+#include <vector>
+#include <sys/socket.h> 
+
+class Client; // forward declaration
+
+class Channel {
+private:
+	std::string _name;
+	std::string _topic;
+	std::string _password;
+	size_t      _userLimit;
+	bool        _inviteOnly;
+	bool        _topicRestricted;
+
+	std::set<Client*> _clients;
+	std::set<Client*> _operators;
+	std::set<Client*> _invited;
+
+public:
+	Channel(const std::string& name);
+
+	// Getters y setters
+	const std::string& getName() const;
+	const std::string& getTopic() const;
+	void setTopic(const std::string& topic);
+
+	bool isInviteOnly() const;
+	void setInviteOnly(bool val);
+
+	bool isTopicRestricted() const;
+	void setTopicRestricted(bool val);
+
+	const std::string& getPassword() const;
+	void setPassword(const std::string& pass);
+
+	size_t getUserLimit() const;
+	void setUserLimit(size_t limit);
+
+	// Gestión de usuarios
+	void addClient(Client* client);
+	void removeClient(Client* client);
+	bool hasClient(Client* client) const;
+
+	// Operadores
+	void addOperator(Client* client);
+	void removeOperator(Client* client);
+	bool isOperator(Client* client) const;
+
+	// Invitados
+	void inviteClient(Client* client);
+	bool isInvited(Client* client) const;
+
+	const std::set<Client*>& getClients() const;
+
+	void sendToAll(const std::string& message, Client* sender);
+
+	
+};
+
+#endif
+#ifndef CLIENT_HPP
+#define CLIENT_HPP
+
+#include <string>
+#include <set>
+
+enum AuthStage 
+{
+    WAITING_PASSWORD,
+    WAITING_NICKNAME,
+    CONNECTED
+};
+
+class Client {
+private:
+    int fd;
+    std::string nickname;
+    std::string buffer;
+    std::string realname;
+    AuthStage stage;
+    std::set<std::string> joinedChannels;
+
+public:
+    Client();
+    Client(int fd, std::string _nick, AuthStage _stage = WAITING_PASSWORD);
+
+    int getFd() const;
+    void setFd(int _fd);
+
+    AuthStage getStage() const ;
+    void setStage(AuthStage s) ;
+
+    std::string getNickname() const;
+    void setNickname(const std::string& nick);
+
+    std::string getRealname() const;
+    void setRealname(const std::string& name);
+
+    std::string& getBuffer();
+
+    void joinChannel(const std::string& channelName);
+    void leaveChannel(const std::string& channelName);
+    bool isInChannel(const std::string& channelName) const;
+    const std::set<std::string>& getJoinedChannels() const;
+
+};
+
+#endif
+#ifndef COMMAND_HANDLER_HPP
+#define COMMAND_HANDLER_HPP
+
+#include <string>
+#include "Server.hpp"
+
+class IRCServer;
+class CommandHandler {
+public:
+    CommandHandler();
+    ~CommandHandler();
+
+    void handleNickCommand(int client_fd, const std::string& new_nick, IRCServer& server);
+    void handleClientMessage(int client_fd, const std::string& message, IRCServer& server);
+    void sendToAllClients(const std::string& message, int sender_fd, IRCServer& server);
+    void handleJoinCommand(int client_fd, const std::string& channel_name_raw, IRCServer& server);
+};
+
+#endif
+#ifndef IRC_SERVER_HPP
+#define IRC_SERVER_HPP
+
+#include <string>
+#include <vector>
+#include <poll.h>
+#include "CommandHandler.hpp"
+#include "BookClient.hpp"  // Incluimos la clase Book
+#include "ChannelBook.hpp"
+
+class CommandHandler;
+// Definición de la clase IRCServer
+class IRCServer {
+    private:
+        // Atributos del servidor
+        int server_fd;  // Descriptor de archivo para el socket del servidor
+        int port;       // Puerto en el que el servidor escucha
+        std::string password;  // Contraseña del servidor
+        std::vector<struct pollfd> clients;  // Lista de clientes conectados
+        BookClient clients_info;  // Usamos Book para almacenar la información de los clientes
+        ChannelBook channels;
+    
+public:
+    // Constructor y Destructor
+    IRCServer(int port, const std::string& password);
+    ~IRCServer();
+
+    // Métodos para manejar clientes y mensajes
+    void acceptClient();
+    void removeClient(int client_fd);
+    void handleClientData(int client_fd, CommandHandler& handler);
+    void run();
+
+    // Métodos de interacción con clientes
+    int nickExist(std::string _nick);
+
+    BookClient&  getClientsBook();
+    ChannelBook&  getChannelsBook();
+
+
+    // Métodos para obtener y configurar información de clientes
+
+};
+
+#endif  // IRC_SERVER_HPP
