@@ -86,6 +86,12 @@ void CommandHandler::handleClientMessage(int client_fd, const std::string& messa
     else if (command == "PRIVMSG") {
         handlePrivMsgCommand(client_fd, params, server);
     }
+    else if (command == "PART") 
+    {
+        std::string channel = params.substr(0, params.find(' '));
+        std::string reason = params.find(':') != std::string::npos ? params.substr(params.find(':') + 1) : "";
+        handlePartCommand(client_fd, channel, reason, server);
+    }
 
   
 }
@@ -314,5 +320,53 @@ void CommandHandler::handlePrivMsgCommand(int client_fd, const std::string& para
         // Enviar al usuario
         std::string privmsg = ":" + sender->getNickname() + "!~" + sender->getRealname() + "@localhost PRIVMSG " + target + " :" + message + "\r\n";
         send(receiver->getFd(), privmsg.c_str(), privmsg.size(), 0);
+    }
+}
+
+
+
+void CommandHandler::handlePartCommand(int client_fd, const std::string& channel_name, const std::string& reason, IRCServer& server) {
+    Client* client = server.getClientsBook().getClient(client_fd);
+    if (!client || client->getStage() != CONNECTED) {
+        std::string err_msg = ":server 451 * :You have not registered\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+
+    // Validar formato del canal
+    if (channel_name.empty() || channel_name[0] != '#') {
+        std::string err_msg = ":server 403 " + client->getNickname() + " " + channel_name + " :No such channel\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+
+    Channel* channel = server.getChannelsBook().getChannel(channel_name);
+    if (!channel) {
+        std::string err_msg = ":server 403 " + client->getNickname() + " " + channel_name + " :No such channel\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+
+    // Verificar si el cliente está en el canal
+    if (!channel->hasClient(client)) {
+        std::string err_msg = ":server 442 " + client->getNickname() + " " + channel_name + " :You're not on that channel\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+
+    // Notificar a los miembros del canal
+    std::string part_msg = ":" + client->getNickname() + "!~" + client->getRealname() + "@localhost PART " + channel_name;
+    if (!reason.empty()) part_msg += " :" + reason;
+    part_msg += "\r\n";
+    
+    channel->sendToAll(part_msg, NULL); // Enviar a todos, incluido el remitente
+
+    // Eliminar al cliente del canal
+    channel->removeClient(client);
+    client->leaveChannel(channel_name);
+
+    // Si el canal queda vacío, eliminarlo
+    if (channel->getClients().empty()) {
+        server.getChannelsBook().removeChannel(channel_name);
     }
 }
