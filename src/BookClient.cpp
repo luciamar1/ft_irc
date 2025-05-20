@@ -67,6 +67,17 @@ bool BookClient::nickExists(const std::string& nick)
     return false;
 }
 
+Client* BookClient::getClientByNick(const std::string& nick) 
+{
+    std::map<int, Client*>::iterator it;
+    for (it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == nick) {
+            return it->second;
+        }
+    }
+    return NULL;
+}
+
 bool BookClient::fdExists(int fd)
 {
     std::map<int, Client *>::iterator it = clients.find(fd);

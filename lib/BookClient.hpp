@@ -17,6 +17,7 @@ class BookClient
         bool    nickExists(const std::string& nick);
         bool    fdExists(int fd);
 
+        Client* getClientByNick(const std::string& nick);
         Client* getClient(int fd);
         std::map<int, Client *>&    getmap();
         void printbook();

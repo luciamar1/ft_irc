@@ -76,14 +76,20 @@ void CommandHandler::handleClientMessage(int client_fd, const std::string& messa
     // Manejo de comandos específicos
     if (command == "NICK") {
         handleNickCommand(client_fd, params, server);  // Cambiar el nickname
-    } else if (command == "QUIT") {
+    } 
+    else if (command == "QUIT") {
         server.removeClient(client_fd);  // Desconectar al cliente
-    } else if (command == "JOIN") {
+    } 
+    else if (command == "JOIN") {
         handleJoinCommand(client_fd, params, server);  // Unirse a un canal
     }  
+    else if (command == "PRIVMSG") {
+        handlePrivMsgCommand(client_fd, params, server);
+    }
 
   
 }
+
 
 
 
@@ -101,6 +107,8 @@ void CommandHandler::sendToAllClients(const std::string& message, int sender_fd,
         }
     }
 }
+
+
 
 void CommandHandler::handleJoinCommand(int client_fd, const std::string& channel_name_raw, IRCServer& server) {
     std::string channel_name = channel_name_raw;
@@ -249,3 +257,62 @@ void CommandHandler::handleJoinCommand(int client_fd, const std::string& channel
 //         send(client_fd, msg.c_str(), msg.length(), 0);
 //     }
 // }
+
+
+void CommandHandler::handlePrivMsgCommand(int client_fd, const std::string& params, IRCServer& server) {
+    Client* sender = server.getClientsBook().getClient(client_fd);
+    if (!sender || sender->getStage() != CONNECTED) {
+        std::string err_msg = ":server 451 * :You have not registered\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+
+    // Parsear target y mensaje
+    size_t space_pos = params.find(' ');
+    if (space_pos == std::string::npos) {
+        std::string err_msg = ":server 411 " + sender->getNickname() + " :No recipient given (PRIVMSG)\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+
+    std::string target = params.substr(0, space_pos);
+    std::string message = params.substr(space_pos + 1);
+
+    // Validar mensaje
+    if (message.empty() /*|| message[0] != ':'*/) {
+        std::string err_msg = ":server 412 " + sender->getNickname() + " :No text to send\r\n";
+        send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+        return;
+    }
+    //message = message.substr(1); // Quitar el ':'
+
+    // Caso 1: Mensaje a un canal
+    if (target[0] == '#') {
+        Channel* channel = server.getChannelsBook().getChannel(target);
+        if (!channel) {
+            std::string err_msg = ":server 403 " + sender->getNickname() + " " + target + " :No such channel\r\n";
+            send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+            return;
+        }
+        if (!channel->hasClient(sender)) {
+            std::string err_msg = ":server 404 " + sender->getNickname() + " " + target + " :Cannot send to channel\r\n";
+            send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+            return;
+        }
+        // Enviar a todos en el canal
+        std::string privmsg = ":" + sender->getNickname() + "!~" + sender->getRealname() + "@localhost PRIVMSG " + target + " :" + message + "\r\n";
+        channel->sendToAll(privmsg, sender);
+    } 
+    // Caso 2: Mensaje a un usuario
+    else {
+        Client* receiver = server.getClientsBook().getClientByNick(target);
+        if (!receiver) {
+            std::string err_msg = ":server 401 " + sender->getNickname() + " " + target + " :No such nick/channel\r\n";
+            send(client_fd, err_msg.c_str(), err_msg.size(), 0);
+            return;
+        }
+        // Enviar al usuario
+        std::string privmsg = ":" + sender->getNickname() + "!~" + sender->getRealname() + "@localhost PRIVMSG " + target + " :" + message + "\r\n";
+        send(receiver->getFd(), privmsg.c_str(), privmsg.size(), 0);
+    }
+}
