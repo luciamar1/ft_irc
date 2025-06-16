@@ -62,7 +62,9 @@ public:
 
 	void sendToAll(const std::string& message, Client* sender);
 
-	
+	//Mode
+	void setMode(char mode, bool enabled, const std::string& arg = "");
+	std::string getModeString() const;
 };
 
 #endif

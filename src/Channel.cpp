@@ -1,6 +1,9 @@
 #include "Channel.hpp"
 #include "Client.hpp"
 #include <iostream>
+#include <sstream>
+#include <cstdlib>
+
 
 // Constructor de Channel
 Channel::Channel(const std::string& name)
@@ -40,6 +43,8 @@ void Channel::setTopicRestricted(bool val) {
 
 // Getter y setter para la contraseña del canal
 const std::string& Channel::getPassword() const {
+  
+    
 	return _password;
 }
 
@@ -134,4 +139,34 @@ void Channel::sendToAll(const std::string& message, Client* sender)
             // opcional: puedes marcar al cliente como desconectado, etc.
         }
     }
+}
+
+void Channel::setMode(char mode, bool enabled, const std::string& arg) 
+{
+    switch (mode) {
+        case 'i': _inviteOnly = enabled; break;
+        case 't': _topicRestricted = enabled; break;
+        case 'k': 
+            if (enabled) _password = arg;
+            else _password = "";
+            break;
+        case 'o':
+            // Implementado en los métodos addOperator/removeOperator
+            break;
+        case 'l':
+            if (enabled) _userLimit = std::atoi(arg.c_str());
+            else _userLimit = 0;
+            break;
+    }
+}
+
+std::string Channel::getModeString() const 
+{
+    std::ostringstream oss;
+    oss << "+";
+    if (_inviteOnly) oss << "i";
+    if (_topicRestricted) oss << "t";
+    if (!_password.empty()) oss << "k";
+    if (_userLimit > 0) oss << "l";
+    return oss.str();
 }
