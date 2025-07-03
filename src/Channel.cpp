@@ -5,6 +5,7 @@
 #include <cstdlib>
 
 
+
 // Constructor de Channel
 Channel::Channel(const std::string& name)
 	: _name(name), _topic(""), _password(""), _userLimit(0), _inviteOnly(false), _topicRestricted(false) {}
@@ -69,6 +70,8 @@ void Channel::addClient(Client* client) {
 // Eliminar un cliente del canal
 void Channel::removeClient(Client* client) {
 	_clients.erase(client);
+    _operators.erase(client);  // También quitar de operadores si lo era
+    _invited.erase(client); 
 }
 
 // Verificar si un cliente está en el canal
@@ -106,7 +109,9 @@ const std::set<Client*>& Channel::getClients() const {
 	return _clients;
 }
 
-
+void Channel::removeInvited(Client* client) {
+    _invited.erase(client);
+}
 
 // void Channel::sendToAll(const std::string& message, Client* sender)
 // {
@@ -129,7 +134,8 @@ void Channel::sendToAll(const std::string& message, Client* sender)
     for (std::set<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) 
     {
         Client* client = *it;
-
+        if (!client) 
+            continue;
         if (sender && client == sender)
             continue;
 

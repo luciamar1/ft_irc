@@ -1,3 +1,409 @@
+NAME = ircserv
+CC = c++
+CFLAGS = -Wall -Wextra -Werror -std=c++98 -Ilib
+DEBUG_FLAGS = -g  # Agrega la flag de depuración
+
+SRC_DIR = src
+OBJ_DIR = obj
+SRC = $(wildcard $(SRC_DIR)/*.cpp)
+OBJ = $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRC))
+
+# Variable que indica si estamos en modo de depuración
+DEBUG = 0
+
+# Si DEBUG está activado, añadimos las flags de depuración
+ifeq ($(DEBUG), 1)
+    CFLAGS += $(DEBUG_FLAGS)
+endif
+
+all: $(NAME)
+
+$(NAME): $(OBJ)
+	$(CC) $(CFLAGS) -o $(NAME) $(OBJ)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
+clean:
+	rm -rf $(OBJ_DIR)
+
+fclean: clean
+	rm -f $(NAME)
+
+re: fclean all
+
+# Modo de depuración
+debug: DEBUG = 1
+debug: re
+
+.PHONY: all clean fclean re debug
+// ===== Archivo: ./lib/Server.hpp ===== //
+#ifndef IRC_SERVER_HPP
+#define IRC_SERVER_HPP
+
+#include <string>
+#include <vector>
+#include <poll.h>
+#include "CommandHandler.hpp"
+#include "BookClient.hpp"  // Incluimos la clase Book
+#include "ChannelBook.hpp"
+
+class CommandHandler;
+// Definición de la clase IRCServer
+class IRCServer {
+    private:
+        // Atributos del servidor
+        int server_fd;  // Descriptor de archivo para el socket del servidor
+        int port;       // Puerto en el que el servidor escucha
+        std::string password;  // Contraseña del servidor
+        std::vector<struct pollfd> clients;  // Lista de clientes conectados
+        BookClient clients_info;  // Usamos Book para almacenar la información de los clientes
+        ChannelBook channels;
+    
+public:
+    // Constructor y Destructor
+    IRCServer(int port, const std::string& password);
+    ~IRCServer();
+
+    // Métodos para manejar clientes y mensajes
+    void acceptClient();
+    void removeClient(int client_fd);
+    void handleClientData(int client_fd, CommandHandler& handler);
+    void run();
+
+    // Métodos de interacción con clientes
+    int nickExist(std::string _nick);
+
+    BookClient&  getClientsBook();
+    ChannelBook&  getChannelsBook();
+
+
+    // Métodos para obtener y configurar información de clientes
+
+};
+
+#endif  // IRC_SERVER_HPP
+
+
+
+// ===== Archivo: ./lib/BookClient.hpp ===== //
+#ifndef BOOK_CLIENT_HPP
+#define BOOK_CLIENT_HPP
+
+#include <map>
+#include "Client.hpp"
+
+class BookClient 
+{
+    private:
+        std::map<int, Client *> clients;
+
+    public:
+        BookClient();
+        ~BookClient();
+        bool addClient(int fd, std::string nick, std::string user, AuthStage stage) ;
+        void    removeClient(int fd);
+        bool    nickExists(const std::string& nick);
+        bool    fdExists(int fd);
+
+        Client* getClientByNick(const std::string& nick);
+        Client* getClient(int fd);
+        std::map<int, Client *>&    getmap();
+        void printbook();
+};
+
+#endif
+
+
+
+// ===== Archivo: ./lib/ChannelBook.hpp ===== //
+#ifndef CHANNELBOOK_HPP
+#define CHANNELBOOK_HPP
+
+#include <map>
+#include <string>
+#include "Channel.hpp"
+
+class ChannelBook {
+    
+    private:
+        std::map<std::string, Channel*> _channels;
+public:
+    ~ChannelBook();
+    Channel* getChannel(const std::string& name);
+    bool addChannel(const std::string& name);
+    void removeChannel(const std::string& name);
+    bool channelExists(const std::string& name) const;
+    std::map<std::string, Channel*>& getAllChannels();
+};
+
+#endif
+
+
+
+// ===== Archivo: ./lib/Client.hpp ===== //
+#ifndef CLIENT_HPP
+#define CLIENT_HPP
+
+#include <string>
+#include <set>
+
+enum AuthStage 
+{
+    WAITING_PASSWORD,
+    WAITING_NICKNAME,
+    WAITING_USERNAME,
+    CONNECTED
+};
+
+class Client {
+private:
+    int fd;
+    // static const size_t MAX_BUFFER_SIZE = 10240; // 10KB
+    std::string nickname;
+    std::string realname;
+    std::string buffer;
+    AuthStage stage;
+    std::set<std::string> joinedChannels;
+
+public:
+    static const size_t MAX_BUFFER_SIZE = 10240;
+    Client();
+    Client(int fd, std::string _nick,std::string _user,  AuthStage _stage = WAITING_PASSWORD);
+
+    int getFd() const;
+    void setFd(int _fd);
+
+    AuthStage getStage() const ;
+    void setStage(AuthStage s) ;
+
+    std::string getNickname() const;
+    void setNickname(const std::string& nick);
+
+    std::string getRealname() const;
+    void setRealname(const std::string& name);
+
+    std::string& getBuffer();
+
+    void joinChannel(const std::string& channelName);
+    void leaveChannel(const std::string& channelName);
+    bool isInChannel(const std::string& channelName) const;
+    const std::set<std::string>& getJoinedChannels() const;
+
+};
+
+#endif
+
+
+
+// ===== Archivo: ./lib/Channel.hpp ===== //
+
+// Channel.hpp
+#ifndef CHANNEL_HPP
+#define CHANNEL_HPP
+
+#include <string>
+#include <map>
+#include <set>
+#include <vector>
+#include <sys/socket.h> 
+
+class Client; // forward declaration
+
+class Channel {
+private:
+	std::string _name;
+	std::string _topic;
+	std::string _password;
+	size_t      _userLimit;
+	bool        _inviteOnly;
+	bool        _topicRestricted;
+
+	std::set<Client*> _clients;
+	std::set<Client*> _operators;
+	std::set<Client*> _invited;
+
+public:
+	Channel(const std::string& name);
+
+	// Getters y setters
+	const std::string& getName() const;
+	const std::string& getTopic() const;
+	void setTopic(const std::string& topic);
+
+	bool isInviteOnly() const;
+	void setInviteOnly(bool val);
+
+	bool isTopicRestricted() const;
+	void setTopicRestricted(bool val);
+
+	const std::string& getPassword() const;
+	void setPassword(const std::string& pass);
+
+	size_t getUserLimit() const;
+	void setUserLimit(size_t limit);
+
+	// Gestión de usuarios
+	void addClient(Client* client);
+	void removeClient(Client* client);
+	bool hasClient(Client* client) const;
+
+	// Operadores
+	void addOperator(Client* client);
+	void removeOperator(Client* client);
+	bool isOperator(Client* client) const;
+
+	// Invitados
+	void inviteClient(Client* client);
+	bool isInvited(Client* client) const;
+ 	void removeInvited(Client* client);
+	
+	const std::set<Client*>& getClients() const;
+
+	void sendToAll(const std::string& message, Client* sender);
+
+	//Mode
+	void setMode(char mode, bool enabled, const std::string& arg = "");
+	std::string getModeString() const;
+};
+
+#endif
+
+
+
+// ===== Archivo: ./lib/CommandHandler.hpp ===== //
+#ifndef COMMAND_HANDLER_HPP
+#define COMMAND_HANDLER_HPP
+
+#include <string>
+#include <vector>
+#include "Server.hpp"
+
+class IRCServer;
+
+class CommandHandler {
+public:
+    struct ParsedMessage {
+        std::string command;
+        std::vector<std::string> params;
+        std::string trailing;
+    };
+
+    CommandHandler();
+    ~CommandHandler();
+
+    static ParsedMessage parseMessage(const std::string& raw_message);
+    void handleClientMessage(int client_fd, const std::string& message, IRCServer& server);
+
+    // Métodos de comandos
+    void handleNickCommand(int client_fd, const std::string& new_nick, IRCServer& server);
+    void handlePrivMsgCommand(int client_fd, const std::string& target, const std::string& message, IRCServer& server);
+    void handlePartCommand(int client_fd, const std::string& channel_name, const std::string& reason, IRCServer& server);
+    void handleJoinCommand(int client_fd, const std::string& channel_name_raw,const std::string& password, IRCServer& server);
+    void sendToAllClients(const std::string& message, int sender_fd, IRCServer& server);
+    void handleModeCommand(int client_fd, const std::string& target, const std::string& mode_str, const std::vector<std::string>& args,IRCServer& server) ;
+    void handleKickCommand(int client_fd, const std::string& channel_name, const std::string& user, const std::string& reason, IRCServer& server);
+    void handleInviteCommand(int client_fd, const std::string& nick, const std::string& channel_name, IRCServer& server);
+    void handleTopicCommand(int client_fd, const std::string& channel_name, const std::string& new_topic, IRCServer& server); 
+private:
+    // Helper para enviar errores
+    void sendError(int client_fd, const std::string& code, const std::string& msg);
+};
+
+#endif
+
+
+
+// #ifndef COMMAND_HANDLER_HPP
+// #define COMMAND_HANDLER_HPP
+
+// #include <string>
+// #include "Server.hpp"
+
+// class IRCServer;
+// class CommandHandler {
+
+// public:
+//     CommandHandler();
+//     ~CommandHandler();
+
+//     void handleNickCommand(int client_fd, const std::string& new_nick, IRCServer& server);
+//     void handleClientMessage(int client_fd, const std::string& message, IRCServer& server);
+//     void sendToAllClients(const std::string& message, int sender_fd, IRCServer& server);
+//     //void handlePrivMsgCommand(int client_fd, const std::string& target, const std::string& message, IRCServer& server);
+//     void handlePrivMsgCommand(int client_fd, const std::string& params, IRCServer& server);
+//     void handlePartCommand(int client_fd, const std::string& channel_name, const std::string& reason, IRCServer& server);
+//     void handleJoinCommand(int client_fd, const std::string& channel_name_raw, IRCServer& server);
+// };
+
+// #endif
+
+
+
+// ===== Archivo: ./src/ChannelBook.cpp ===== //
+#include "ChannelBook.hpp"
+#include <iostream>
+
+Channel* ChannelBook::getChannel(const std::string& name) {
+    if (_channels.find(name) != _channels.end())
+        return _channels[name];
+    return NULL;
+}
+
+ChannelBook::~ChannelBook() {
+    for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
+        delete it->second;
+    }
+}
+
+bool ChannelBook::addChannel(const std::string& name) 
+{
+    if (_channels.find(name) != _channels.end()) return true;
+
+    Channel* new_channel = NULL;
+    try {
+        new_channel = new Channel(name);
+    } 
+    catch (const std::bad_alloc& e) { 
+        std::cerr << "Error: could not allocate memory for new Channel: " << e.what() << std::endl;
+
+        return false;
+    }
+
+    try {
+        _channels.insert(std::make_pair(name, new_channel));
+    } 
+    catch (...) {
+        delete new_channel;
+        return false;
+    }
+    return true;
+
+}
+
+void ChannelBook::removeChannel(const std::string& name) {
+    std::map<std::string, Channel*>::iterator it = _channels.find(name);
+    if (it != _channels.end()) {
+        delete it->second;
+        _channels.erase(it);
+    }
+}
+
+bool ChannelBook::channelExists(const std::string& name) const {
+    return _channels.find(name) != _channels.end();
+}
+
+std::map<std::string, Channel*>& ChannelBook::getAllChannels() {
+    return _channels;
+}
+
+
+
+
+// ===== Archivo: ./src/CommandHandler.cpp ===== //
 #include "CommandHandler.hpp"
 #include <sstream>
 #include <iostream>
@@ -1642,3 +2048,864 @@ void CommandHandler::handleTopicCommand(int client_fd, const std::string& channe
     send(client_fd, rpl.c_str(), rpl.size(), 0);
 
 }
+
+
+// ===== Archivo: ./src/Channel.cpp ===== //
+#include "Channel.hpp"
+#include "Client.hpp"
+#include <iostream>
+#include <sstream>
+#include <cstdlib>
+
+
+
+// Constructor de Channel
+Channel::Channel(const std::string& name)
+	: _name(name), _topic(""), _password(""), _userLimit(0), _inviteOnly(false), _topicRestricted(false) {}
+
+// Getter para el nombre del canal
+const std::string& Channel::getName() const {
+	return _name;
+}
+
+// Getter y setter para el topic del canal
+const std::string& Channel::getTopic() const {
+	return _topic;
+}
+
+void Channel::setTopic(const std::string& topic) {
+	_topic = topic;
+}
+
+// Comprobación de si el canal es solo por invitación
+bool Channel::isInviteOnly() const {
+	return _inviteOnly;
+}
+
+void Channel::setInviteOnly(bool val) {
+	_inviteOnly = val;
+}
+
+// Comprobación de si el canal tiene restricciones en el tema
+bool Channel::isTopicRestricted() const {
+	return _topicRestricted;
+}
+
+void Channel::setTopicRestricted(bool val) {
+	_topicRestricted = val;
+}
+
+// Getter y setter para la contraseña del canal
+const std::string& Channel::getPassword() const {
+  
+    
+	return _password;
+}
+
+void Channel::setPassword(const std::string& pass) {
+	_password = pass;
+}
+
+// Getter y setter para el límite de usuarios en el canal
+size_t Channel::getUserLimit() const {
+	return _userLimit;
+}
+
+void Channel::setUserLimit(size_t limit) {
+	_userLimit = limit;
+}
+
+// Agregar un cliente al canal
+void Channel::addClient(Client* client) {
+	_clients.insert(client);
+}
+
+// Eliminar un cliente del canal
+void Channel::removeClient(Client* client) {
+	_clients.erase(client);
+    _operators.erase(client);  // También quitar de operadores si lo era
+    _invited.erase(client); 
+}
+
+// Verificar si un cliente está en el canal
+bool Channel::hasClient(Client* client) const {
+	return _clients.find(client) != _clients.end();
+}
+
+// Agregar un operador al canal
+void Channel::addOperator(Client* client) {
+	_operators.insert(client);
+}
+
+// Eliminar un operador del canal
+void Channel::removeOperator(Client* client) {
+	_operators.erase(client);
+}
+
+// Verificar si un cliente es operador en el canal
+bool Channel::isOperator(Client* client) const {
+	return _operators.find(client) != _operators.end();
+}
+
+// Invitar a un cliente al canal
+void Channel::inviteClient(Client* client) {
+	_invited.insert(client);
+}
+
+// Verificar si un cliente ha sido invitado
+bool Channel::isInvited(Client* client) const {
+	return _invited.find(client) != _invited.end();
+}
+
+// Obtener la lista de clientes del canal
+const std::set<Client*>& Channel::getClients() const {
+	return _clients;
+}
+
+void Channel::removeInvited(Client* client) {
+    _invited.erase(client);
+}
+
+// void Channel::sendToAll(const std::string& message, Client* sender)
+// {
+//     for (std::set<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) 
+// 	{
+//         Client* client = *it;
+
+//         if (client == NULL)
+//             continue;
+
+//         // Si hay sender, y el cliente es el sender, lo saltamos
+//         if (sender && client->getFd() == sender->getFd())
+//             continue;
+
+//         send(client->getFd(), message.c_str(), message.length(), 0);
+//     }
+// }
+void Channel::sendToAll(const std::string& message, Client* sender)
+{
+    for (std::set<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) 
+    {
+        Client* client = *it;
+        if (!client) 
+            continue;
+        if (sender && client == sender)
+            continue;
+
+        ssize_t bytes_sent = send(client->getFd(), message.c_str(), message.length(), 0);
+        if (bytes_sent == -1) {
+            std::cerr << "Failed to send message to fd " << client->getFd() << std::endl;
+            // opcional: puedes marcar al cliente como desconectado, etc.
+        }
+    }
+}
+
+void Channel::setMode(char mode, bool enabled, const std::string& arg) 
+{
+    switch (mode) {
+        case 'i': _inviteOnly = enabled; break;
+        case 't': _topicRestricted = enabled; break;
+        case 'k': 
+            if (enabled) _password = arg;
+            else _password = "";
+            break;
+        case 'o':
+            // Implementado en los métodos addOperator/removeOperator
+            break;
+        case 'l':
+            if (enabled) _userLimit = std::atoi(arg.c_str());
+            else _userLimit = 0;
+            break;
+    }
+}
+
+std::string Channel::getModeString() const 
+{
+    std::ostringstream oss;
+    oss << "+";
+    if (_inviteOnly) oss << "i";
+    if (_topicRestricted) oss << "t";
+    if (!_password.empty()) oss << "k";
+    if (_userLimit > 0) oss << "l";
+    return oss.str();
+}
+
+
+// ===== Archivo: ./src/BookClient.cpp ===== //
+#include "BookClient.hpp"
+#include <iostream>
+
+bool BookClient::addClient(int fd, std::string nick, std::string user, AuthStage stage) 
+{
+    if (clients.find(fd) != clients.end()) return false;
+
+    Client* new_client = NULL;
+    try {
+        new_client = new Client(fd, nick, user, stage);
+    } 
+    catch (const std::bad_alloc& e) {
+        std::cerr << "Error: could not allocate memory for new Client: " << e.what() << std::endl;
+        return false;
+    }
+
+    try {
+        clients.insert(std::make_pair(fd, new_client));
+    } 
+    catch (...) {
+        delete new_client;
+        return false;
+    }
+    return true;
+
+
+}
+
+
+void BookClient::printbook()
+{
+    std::map<int, Client *>::iterator it = clients.begin();
+        while(it != clients.end())
+        {
+            std::cout << "nick = " <<it->second->getNickname() <<  " fd = " << it->first  << std::endl;
+            it ++;
+        }
+}
+
+BookClient::BookClient()
+{
+
+}
+BookClient::~BookClient()
+{
+    std::map<int, Client *>::iterator it = clients.begin();
+        while(it != clients.end())
+        {
+            delete it->second;
+            it ++;
+        }
+        clients.clear();
+
+}
+
+void BookClient::removeClient(int fd) {
+    std::map<int, Client*>::iterator it = clients.find(fd);
+    if (it != clients.end()) {
+        delete it->second;   // Liberar memoria del Client
+        clients.erase(it);   // Eliminar entrada del mapa
+    }
+}
+
+bool BookClient::nickExists(const std::string& nick) 
+{
+    std::map<int, Client *>::iterator it = clients.begin();
+    while(it != clients.end())
+    {
+        if (it->second->getNickname() == nick)
+        {
+            
+            return true;
+        }
+        it ++;
+    }
+    return false;
+}
+
+Client* BookClient::getClientByNick(const std::string& nick) 
+{
+    std::map<int, Client*>::iterator it;
+    for (it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second->getNickname() == nick) {
+            return it->second;
+        }
+    }
+    return NULL;
+}
+
+bool BookClient::fdExists(int fd)
+{
+    std::map<int, Client *>::iterator it = clients.find(fd);
+    if(it != clients.end())
+    {
+        return true;
+    }
+    return false;
+}
+
+Client* BookClient::getClient(int fd) 
+{
+    if (clients.find(fd) != clients.end())
+        return clients[fd];
+    return NULL;
+}
+
+std::map<int, Client *>& BookClient::getmap() 
+{
+    return clients;
+}
+
+
+
+// ===== Archivo: ./src/Server.cpp ===== //
+#include "Server.hpp"
+#include "CommandHandler.hpp"
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h> 
+#include <unistd.h>
+#include <sys/socket.h>
+#include <cerrno>
+#include <arpa/inet.h>
+#include <poll.h>
+#include <sstream>
+#include <map>
+#include <cstdio> // Necesario para perror()
+
+// Constructor del servidor
+// IRCServer::IRCServer(int port, const std::string& password) : port(port), password(password) {
+//     struct sockaddr_in server_addr;
+
+//     // Crear el socket
+//     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+//     if (server_fd < 0) {
+//         std::perror("socket");  // Si falla al crear el socket, termina el programa
+//         std::exit(EXIT_FAILURE);
+//     }
+
+  
+//     // Configurar la dirección del servidor
+//     std::memset(&server_addr, 0, sizeof(server_addr));
+//     server_addr.sin_family = AF_INET;
+//     server_addr.sin_addr.s_addr = INADDR_ANY;  // Escuchar en todas las interfaces de red
+//     server_addr.sin_port = htons(port);  // Asignar el puerto proporcionado
+
+//     // Asociar el socket con la dirección del servidor
+//     if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+//         std::perror("bind");  // Si falla la asociación, termina el programa
+//         std::exit(EXIT_FAILURE);
+//     }
+
+//     // Escuchar conexiones entrantes
+//     if (listen(server_fd, 10) < 0) {
+//         std::perror("listen");  // Si falla al escuchar, termina el programa
+//         std::exit(EXIT_FAILURE);
+//     }
+
+//     // Preparar el conjunto de clientes con el socket del servidor
+//     struct pollfd pfd;
+//     pfd.fd = server_fd;
+//     pfd.events = POLLIN;  // Indica que estamos esperando eventos de lectura
+//     clients.push_back(pfd);  // Añadir el servidor a la lista de clientes
+
+//     std::cout << "IRC Server running on port " << port << " and awaiting connections..." << std::endl;
+// }
+
+IRCServer::IRCServer(int port, const std::string& password) : port(port), password(password) {
+    struct sockaddr_in server_addr;
+
+    // Crear el socket
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        std::perror("socket");
+        std::exit(EXIT_FAILURE);
+    }
+
+    // 🔥 Añadir opción SO_REUSEADDR para permitir reusar el puerto inmediatamente
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) )
+    {
+        std::perror("setsockopt");
+        std::exit(EXIT_FAILURE);
+    }
+
+    // Configurar la dirección del servidor
+    std::memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
+
+    // Asociar el socket con la dirección del servidor
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        std::perror("bind");
+        std::exit(EXIT_FAILURE);
+    }
+
+    // Escuchar conexiones entrantes
+    if (listen(server_fd, 10) < 0) {
+        std::perror("listen");
+        std::exit(EXIT_FAILURE);
+    }
+
+    // Preparar el conjunto de clientes con el socket del servidor
+    struct pollfd pfd;
+    pfd.fd = server_fd;
+    pfd.events = POLLIN;
+    clients.push_back(pfd);
+
+    std::cout << "IRC Server running on port " << port << " and awaiting connections..." << std::endl;
+}
+
+BookClient& IRCServer::getClientsBook()
+{
+    return this->clients_info;
+}
+ChannelBook& IRCServer::getChannelsBook()
+{
+    return this->channels;
+}
+
+// Destructor del servidor
+IRCServer::~IRCServer() 
+{
+    close(server_fd);
+    
+    // Cerrar todos los sockets de clientes
+    for (size_t i = 0; i < clients.size(); ++i) {
+        if (clients[i].fd != server_fd) {
+            close(clients[i].fd);
+        }
+    }
+    std::cout << "Server has shut down. All client connections have been closed." << std::endl;
+
+}
+
+
+
+
+
+// Solicitar el nickname
+
+void IRCServer::acceptClient() 
+{
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+    if (client_fd < 0) {
+        std::perror("accept");
+        return;
+    }
+
+    int flags = fcntl(client_fd, F_GETFL, 0);
+    if (flags < 0 || fcntl(client_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        std::perror("fcntl");
+        close(client_fd);
+        return;
+    }
+
+    // Añadir a la lista de clientes para poll
+    struct pollfd pfd;
+    pfd.fd = client_fd;
+    pfd.events = POLLIN;
+    clients.push_back(pfd);
+
+    // Añadir cliente en estado de espera de contraseña
+    clients_info.addClient(client_fd, "", "", WAITING_PASSWORD);
+
+    const char* welcome_msg = "Welcome to the IRC Server! Please enter the password:\n";
+    send(client_fd, welcome_msg, strlen(welcome_msg), 0);
+}
+
+
+// Eliminar cliente
+
+// void IRCServer::removeClient(int client_fd) {
+//     Client* client = clients_info.getClient(client_fd);
+//     if (client) {
+//         // Limpiar de todos los canales
+//         const std::set<std::string>& channels = client->getJoinedChannels();
+//         for (std::set<std::string>::const_iterator it = channels.begin(); it != channels.end(); ++it) {
+//             Channel* channel = channels_book.getChannel(*it);
+//             if (channel) {
+//                 channel->removeClient(client);
+//             }
+//         }
+//         // ... resto del código ...
+//     }
+// }
+void IRCServer::removeClient(int client_fd) 
+{
+    Client* client = clients_info.getClient(client_fd);
+    bool client_was_registered = false;
+    std::string nickname = "";
+    std::string realname = "";  // Añadimos para almacenar realname seguro
+    
+    // Paso 1: Eliminar al cliente de todos los canales donde está unido
+    if (client) 
+    {
+        client_was_registered = true;
+        nickname = client->getNickname();
+        realname = client->getRealname();  // Almacenar ANTES de cualquier operación
+        
+        // Hacer copia de los canales porque leaveChannel modifica el set original
+        std::set<std::string> joinedChannels = client->getJoinedChannels();
+        
+        for (std::set<std::string>::const_iterator it = joinedChannels.begin(); 
+             it != joinedChannels.end(); ++it) {
+            const std::string& channel_name = *it;
+            Channel* channel = channels.getChannel(channel_name);
+            
+            // VERIFICACIÓN CRÍTICA: Asegurarnos que el canal existe
+            if (channel) {
+                // Construir mensaje de QUIT ANTES de modificar el cliente
+                std::string quit_msg = ":" + nickname + "!~" + realname +  // Usar valor almacenado
+                                      "@localhost QUIT :Connection closed\r\n";
+                channel->sendToAll(quit_msg, NULL);
+                
+                // Eliminar al cliente del canal
+                channel->removeClient(client);
+                
+                // Si el canal queda vacío, eliminarlo
+                if (channel->getClients().empty()) {
+                    channels.removeChannel(channel_name);
+                }
+            }
+        }
+    }
+
+    // Paso 2: Cerrar conexión y eliminar de estructuras
+    close(client_fd);
+    
+    // Eliminar de la lista de poll
+    for (size_t i = 0; i < clients.size(); ++i) {
+        if (clients[i].fd == client_fd) {
+            clients.erase(clients.begin() + i);
+            break;
+        }
+    }
+    
+    // Eliminar del libro de clientes
+    clients_info.removeClient(client_fd);
+    
+    // Paso 3: Log
+    if (client_was_registered) {
+        std::cout << "Client with nickname: " << nickname
+                  << " (fd: " << client_fd << ") has disconnected." << std::endl;
+    } else {
+        std::cout << "Unregistered client (fd: " << client_fd << ") has disconnected." << std::endl;
+    }
+}
+
+
+// Ejecutar el servidor y manejar los eventos
+void IRCServer::run() {
+    CommandHandler handler;
+    while (true) {
+        if (clients.empty()) continue;
+        if (poll(&clients[0], clients.size(), -1) < 0) {
+            std::perror("poll");
+            continue;
+        }
+        // Manejar los eventos para cada cliente
+        for (int i = static_cast<int>(clients.size()) - 1; i >= 0; --i) 
+        {
+            if (clients[i].revents & POLLIN) {
+                if (clients[i].fd == server_fd) 
+                {
+                    acceptClient();  // Aceptar un nuevo cliente
+                } 
+                else 
+                {
+                    handleClientData(clients[i].fd, handler);  // Manejar los datos del cliente
+                }
+            }
+        }
+        
+    }
+}
+
+
+
+// void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
+//     char buffer[512];
+//     memset(buffer, 0, sizeof(buffer));
+//     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+//     if (bytes_received < 0) {
+//         if (errno == EAGAIN || errno == EWOULDBLOCK)
+//             return;  // No hay datos ahora
+//         std::perror("recv handleClientData");
+//         removeClient(client_fd);
+//         return;
+//     }
+//     if (bytes_received == 0) {
+//         removeClient(client_fd);
+//         return;
+//     }
+
+//     buffer[bytes_received] = '\0';
+//     Client* client = clients_info.getClient(client_fd);
+//     if (!client) return;
+
+//     client->getBuffer() += buffer;
+//     size_t pos;
+//     while ((pos = client->getBuffer().find('\n')) != std::string::npos) {
+//         std::string line = client->getBuffer().substr(0, pos);
+//         client->getBuffer().erase(0, pos + 1);
+//         line.erase(line.find_last_not_of("\r\n") + 1);
+
+//         if (client->getStage() == WAITING_PASSWORD) {
+//             if (line != password) {
+//                 send(client_fd, "Incorrect password. Connection closed.\n", 40, 0);
+//                 removeClient(client_fd);
+//                 return;
+//             }
+//             client->setStage(WAITING_NICKNAME);
+//             send(client_fd, "Please enter your nickname:\n", 29, 0);
+//             return;
+//         }
+
+//         if (client->getStage() == WAITING_NICKNAME) {
+//             line.erase(0, line.find_first_not_of(" "));
+//             line.erase(line.find_last_not_of(" ") + 1);
+//             if (line.empty() || clients_info.nickExists(line)) {
+//                 send(client_fd, "Nickname invalid or taken. Try again:\n", 38, 0);
+//                 return;
+//             }
+//             client->setNickname(line);
+//             client->setStage(WAITING_USERNAME);
+//             send(client_fd, "Please enter your real name:\n", 29, 0);
+//             return;
+//         }
+
+//         if (client->getStage() == WAITING_USERNAME)
+//         {
+            // line.erase(0, line.find_first_not_of(" "));
+            // line.erase(line.find_last_not_of(" ") + 1);
+            // if (line.empty() ) {
+            //     send(client_fd, "Empty username. Try again:\n", 38, 0);
+            //     return;
+            // }
+            // client->setRealname(line);
+            // client->setStage(CONNECTED);
+            // std::cout << "New client " << line << " connected with fd " << client_fd << ".\n";
+            // send(client_fd, "You have successfully authenticated and joined the server.\n", 60, 0);
+            // return;
+//         }
+
+
+
+//         if (client->getStage() == CONNECTED) {
+            // std::string sender_nick = client->getNickname();
+            // std::string full_message = "[Message from: " + sender_nick + "]: " + line + "\n";
+
+            // std::cout << "--------------------------------------------\n";
+            // std::cout << "[Message from: \033[1;34m" << sender_nick << "\033[0m]\n";
+            // std::cout << "--------------------------------------------\n";
+            // std::cout << "\033[1;32m" << line << "\033[0m\n";
+            // std::cout << "--------------------------------------------\n";
+
+            // handler.handleClientMessage(client_fd, line, *this);
+//             //handler.sendToAllClients(full_message, client_fd, *this);
+//         }
+//     }
+// }
+void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
+    char buffer[512];
+    memset(buffer, 0, sizeof(buffer));
+    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+    if (bytes_received < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return;  // No hay datos ahora
+        std::perror("recv handleClientData");
+        removeClient(client_fd);
+        return;
+    }
+    if (bytes_received == 0) {
+        removeClient(client_fd);
+        return;
+    }
+
+    buffer[bytes_received] = '\0';
+    Client* client = clients_info.getClient(client_fd);
+    if (!client) return;
+
+    // ========= PROTECCIÓN CONTRA DoS ========= //
+    // Verificar si el nuevo dato excede el límite del buffer
+    if (client->getBuffer().size() + bytes_received > Client::MAX_BUFFER_SIZE) {
+        std::cerr << "Client fd " << client_fd << " exceeded buffer limit (" 
+                  << Client::MAX_BUFFER_SIZE << " bytes). Disconnecting." << std::endl;
+        removeClient(client_fd);
+        return;
+    }
+    
+    // Añadir datos al buffer
+    client->getBuffer() += buffer;
+    
+    // Procesar líneas completas
+    size_t pos;
+    while ((pos = client->getBuffer().find('\n')) != std::string::npos) {
+        std::string line = client->getBuffer().substr(0, pos);
+        client->getBuffer().erase(0, pos + 1);
+        line.erase(line.find_last_not_of("\r\n") + 1);
+
+        // ... [todo el código existente de procesamiento de estados] ...
+        if (client->getStage() == WAITING_PASSWORD) {
+            // ... [código existente] ...
+            if (line != password) {
+                send(client_fd, "Incorrect password. Connection closed.\n", 40, 0);
+                removeClient(client_fd);
+                return;
+            }
+            client->setStage(WAITING_NICKNAME);
+            send(client_fd, "Please enter your nickname:\n", 29, 0);
+            return;
+        }
+        else if (client->getStage() == WAITING_NICKNAME) {
+            // ... [código existente] ...
+            line.erase(0, line.find_first_not_of(" "));
+            line.erase(line.find_last_not_of(" ") + 1);
+            if (line.empty() || clients_info.nickExists(line)) {
+                send(client_fd, "Nickname invalid or taken. Try again:\n", 38, 0);
+                return;
+            }
+            client->setNickname(line);
+            client->setStage(WAITING_USERNAME);
+            send(client_fd, "Please enter your real name:\n", 29, 0);
+            return;
+        }
+        else if (client->getStage() == WAITING_USERNAME) {
+            // ... [código existente] ...
+            line.erase(0, line.find_first_not_of(" "));
+            line.erase(line.find_last_not_of(" ") + 1);
+            if (line.empty() ) {
+                send(client_fd, "Empty username. Try again:\n", 38, 0);
+                return;
+            }
+            client->setRealname(line);
+            client->setStage(CONNECTED);
+            std::cout << "New client " << line << " connected with fd " << client_fd << ".\n";
+            send(client_fd, "You have successfully authenticated and joined the server.\n", 60, 0);
+            return;
+        }
+        else if (client->getStage() == CONNECTED) {
+            // ... [código existente] ...
+            std::string sender_nick = client->getNickname();
+            std::string full_message = "[Message from: " + sender_nick + "]: " + line + "\n";
+
+            std::cout << "--------------------------------------------\n";
+            std::cout << "[Message from: \033[1;34m" << sender_nick << "\033[0m]\n";
+            std::cout << "--------------------------------------------\n";
+            std::cout << "\033[1;32m" << line << "\033[0m\n";
+            std::cout << "--------------------------------------------\n";
+
+            handler.handleClientMessage(client_fd, line, *this);
+        }
+    }
+
+    // Verificación adicional para datos residuales sin \n
+    if (client->getBuffer().size() > Client::MAX_BUFFER_SIZE) {
+        std::cerr << "Client fd " << client_fd << " buffer overflow (" 
+                  << client->getBuffer().size() << " > " 
+                  << Client::MAX_BUFFER_SIZE << "). Disconnecting." << std::endl;
+        removeClient(client_fd);
+        return;
+    }
+}
+
+
+// ===== Archivo: ./src/main.cpp ===== //
+#include "Server.hpp"
+#include <cstdlib>
+#include <iostream>
+
+int main(int argc, char* argv[]) {
+     if (argc != 3) {
+        std::cerr << "Usage: ./ircserv <port> <password>" << std::endl;
+        return 1;
+    }
+
+    // Verificar que el puerto sea numérico
+    for (char* p = argv[1]; *p; p++) {
+        if (!std::isdigit(*p)) {
+            std::cerr << "Invalid port: must be numeric" << std::endl;
+            return 1;
+        }
+    }
+
+    int port = std::atoi(argv[1]);
+    if (port <= 0 || port > 65535) {
+        std::cerr << "Invalid port number. Port must be between 1 and 65535." << std::endl;
+        return 1;
+    }
+
+    std::string password = argv[2];
+    if (password.empty()) {
+        std::cerr << "Password cannot be empty." << std::endl;
+        return 1;
+    }
+
+    IRCServer server(port, password);
+    server.run();
+    return 0;
+}
+
+
+
+// ===== Archivo: ./src/Client.cpp ===== //
+#include "Client.hpp"
+
+Client::Client() : fd(-1), nickname(""), realname("") {}
+
+// Client::Client(int fd, std::string _nick) : fd(fd), nickname(_nick), realname("") {}
+
+Client::Client(int fd, std::string _nick, std::string _user, AuthStage stage )
+    : fd(fd), nickname(_nick), realname(_user),buffer(""), stage(stage) {}
+
+std::string& Client::getBuffer() 
+{ 
+    return buffer; 
+}
+
+int Client::getFd() const {
+    return fd;
+}
+
+void Client::setFd(int _fd) {
+    fd = _fd;
+}
+
+std::string Client::getNickname() const {
+    return nickname;
+}
+
+void Client::setNickname(const std::string& nick) {
+    nickname = nick;
+}
+
+std::string Client::getRealname() const {
+    return realname;
+}
+
+void Client::setRealname(const std::string& name) {
+    realname = name;
+}
+
+
+AuthStage Client::getStage() const 
+{ 
+    return stage; 
+}
+
+void Client::setStage(AuthStage s) 
+{ 
+    stage = s; 
+}
+
+void Client::joinChannel(const std::string& channelName) {
+    joinedChannels.insert(channelName);
+}
+
+void Client::leaveChannel(const std::string& channelName) {
+    joinedChannels.erase(channelName);
+}
+
+bool Client::isInChannel(const std::string& channelName) const {
+    return joinedChannels.find(channelName) != joinedChannels.end();
+}
+
+const std::set<std::string>& Client::getJoinedChannels() const {
+    return joinedChannels;
+}
+
+

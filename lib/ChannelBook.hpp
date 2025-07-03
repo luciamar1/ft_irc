@@ -10,6 +10,7 @@ class ChannelBook {
     private:
         std::map<std::string, Channel*> _channels;
 public:
+    ~ChannelBook();
     Channel* getChannel(const std::string& name);
     bool addChannel(const std::string& name);
     void removeChannel(const std::string& name);

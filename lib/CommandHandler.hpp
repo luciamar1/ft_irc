@@ -28,7 +28,9 @@ public:
     void handleJoinCommand(int client_fd, const std::string& channel_name_raw,const std::string& password, IRCServer& server);
     void sendToAllClients(const std::string& message, int sender_fd, IRCServer& server);
     void handleModeCommand(int client_fd, const std::string& target, const std::string& mode_str, const std::vector<std::string>& args,IRCServer& server) ;
-
+    void handleKickCommand(int client_fd, const std::string& channel_name, const std::string& user, const std::string& reason, IRCServer& server);
+    void handleInviteCommand(int client_fd, const std::string& nick, const std::string& channel_name, IRCServer& server);
+    void handleTopicCommand(int client_fd, const std::string& channel_name, const std::string& new_topic, IRCServer& server); 
 private:
     // Helper para enviar errores
     void sendError(int client_fd, const std::string& code, const std::string& msg);

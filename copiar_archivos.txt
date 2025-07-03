@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Script para combinar todos los archivos .cpp y .hpp en copia.txt
+
+# Nombre del archivo de salida
+output="copia.txt"
+
+# Eliminar el archivo de salida si ya existe
+> "$output"
+
+# Buscar y procesar archivos
+find . -type f \( -name "*.cpp" -o -name "*.hpp" \) | while IFS= read -r file; do
+    # Agregar separador con la ruta del archivo
+    echo "// ===== Archivo: $file ===== //" >> "$output"
+    # Concatenar el contenido del archivo
+    cat "$file" >> "$output"
+    # Agregar separador final
+    echo -e "\n\n" >> "$output"
+done
+
+echo "Proceso completado. Los archivos se han combinado en $output"

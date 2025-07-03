@@ -15,6 +15,7 @@ enum AuthStage
 class Client {
 private:
     int fd;
+    // static const size_t MAX_BUFFER_SIZE = 10240; // 10KB
     std::string nickname;
     std::string realname;
     std::string buffer;
@@ -22,6 +23,7 @@ private:
     std::set<std::string> joinedChannels;
 
 public:
+    static const size_t MAX_BUFFER_SIZE = 10240;
     Client();
     Client(int fd, std::string _nick,std::string _user,  AuthStage _stage = WAITING_PASSWORD);
 

@@ -7,21 +7,32 @@ Channel* ChannelBook::getChannel(const std::string& name) {
     return NULL;
 }
 
+ChannelBook::~ChannelBook() {
+    for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
+        delete it->second;
+    }
+}
+
 bool ChannelBook::addChannel(const std::string& name) 
 {
-    if (_channels.find(name) != _channels.end())
-    
-        return true;
+    if (_channels.find(name) != _channels.end()) return true;
 
-    try 
-    {
-        _channels[name] = new Channel(name);
+    Channel* new_channel = NULL;
+    try {
+        new_channel = new Channel(name);
     } 
-    catch (const std::bad_alloc& e) 
-    {
+    catch (const std::bad_alloc& e) { 
         std::cerr << "Error: could not allocate memory for new Channel: " << e.what() << std::endl;
-        removeChannel(name); 
-        return(false);
+
+        return false;
+    }
+
+    try {
+        _channels.insert(std::make_pair(name, new_channel));
+    } 
+    catch (...) {
+        delete new_channel;
+        return false;
     }
     return true;
 

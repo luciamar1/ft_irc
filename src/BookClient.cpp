@@ -3,20 +3,27 @@
 
 bool BookClient::addClient(int fd, std::string nick, std::string user, AuthStage stage) 
 {
-    if (clients.find(fd) != clients.end())
-        return false;
+    if (clients.find(fd) != clients.end()) return false;
 
-    try 
-    {
-        clients[fd] = new Client(fd, nick, user, stage);
+    Client* new_client = NULL;
+    try {
+        new_client = new Client(fd, nick, user, stage);
     } 
-    catch (const std::bad_alloc& e) 
-    {
+    catch (const std::bad_alloc& e) {
         std::cerr << "Error: could not allocate memory for new Client: " << e.what() << std::endl;
-        removeClient(fd); 
-        return(false);
+        return false;
+    }
+
+    try {
+        clients.insert(std::make_pair(fd, new_client));
+    } 
+    catch (...) {
+        delete new_client;
+        return false;
     }
     return true;
+
+
 }
 
 
@@ -47,11 +54,13 @@ BookClient::~BookClient()
 }
 
 void BookClient::removeClient(int fd) {
-    if(clients.find(fd) != clients.end()) {
-        delete clients[fd];
-        clients.erase(fd); 
+    std::map<int, Client*>::iterator it = clients.find(fd);
+    if (it != clients.end()) {
+        delete it->second;   // Liberar memoria del Client
+        clients.erase(it);   // Eliminar entrada del mapa
     }
 }
+
 bool BookClient::nickExists(const std::string& nick) 
 {
     std::map<int, Client *>::iterator it = clients.begin();

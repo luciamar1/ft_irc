@@ -57,7 +57,8 @@ public:
 	// Invitados
 	void inviteClient(Client* client);
 	bool isInvited(Client* client) const;
-
+ 	void removeInvited(Client* client);
+	
 	const std::set<Client*>& getClients() const;
 
 	void sendToAll(const std::string& message, Client* sender);

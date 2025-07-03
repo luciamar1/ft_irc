@@ -107,6 +107,7 @@
     "fstream": "cpp",
     "set": "cpp",
     "optional": "cpp",
-    "ranges": "cpp"
+    "ranges": "cpp",
+    "cerrno": "cpp"
   }
 }
