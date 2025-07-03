@@ -55,47 +55,97 @@
 IRCServer::IRCServer(int port, const std::string& password) : port(port), password(password) {
     struct sockaddr_in server_addr;
 
-    // Crear el socket
+    // Crear socket
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         std::perror("socket");
         std::exit(EXIT_FAILURE);
     }
 
-    // 🔥 Añadir opción SO_REUSEADDR para permitir reusar el puerto inmediatamente
+    // SO_REUSEADDR
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) )
-    {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         std::perror("setsockopt");
         std::exit(EXIT_FAILURE);
     }
 
-    // Configurar la dirección del servidor
-    std::memset(&server_addr, 0, sizeof(server_addr));
+    // Configurar dirección
+    memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(port);
 
-    // Asociar el socket con la dirección del servidor
+    // Bind
     if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         std::perror("bind");
         std::exit(EXIT_FAILURE);
     }
 
-    // Escuchar conexiones entrantes
+    // Listen
     if (listen(server_fd, 10) < 0) {
         std::perror("listen");
         std::exit(EXIT_FAILURE);
     }
 
-    // Preparar el conjunto de clientes con el socket del servidor
+    // CORRECCIÓN: Configurar non-blocking para el socket del servidor
+    if (fcntl(server_fd, F_SETFL, O_NONBLOCK) < 0) {
+        std::perror("fcntl");
+        std::exit(EXIT_FAILURE);
+    }
+
+    // Preparar poll
     struct pollfd pfd;
     pfd.fd = server_fd;
     pfd.events = POLLIN;
     clients.push_back(pfd);
 
-    std::cout << "IRC Server running on port " << port << " and awaiting connections..." << std::endl;
+    std::cout << "IRC Server running on port " << port << std::endl;
 }
+
+// IRCServer::IRCServer(int port, const std::string& password) : port(port), password(password) {
+//     struct sockaddr_in server_addr;
+
+//     // Crear el socket
+//     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+//     if (server_fd < 0) {
+//         std::perror("socket");
+//         std::exit(EXIT_FAILURE);
+//     }
+
+//     // 🔥 Añadir opción SO_REUSEADDR para permitir reusar el puerto inmediatamente
+//     int opt = 1;
+//     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) )
+//     {
+//         std::perror("setsockopt");
+//         std::exit(EXIT_FAILURE);
+//     }
+
+//     // Configurar la dirección del servidor
+//     std::memset(&server_addr, 0, sizeof(server_addr));
+//     server_addr.sin_family = AF_INET;
+//     server_addr.sin_addr.s_addr = INADDR_ANY;
+//     server_addr.sin_port = htons(port);
+
+//     // Asociar el socket con la dirección del servidor
+//     if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+//         std::perror("bind");
+//         std::exit(EXIT_FAILURE);
+//     }
+
+//     // Escuchar conexiones entrantes
+//     if (listen(server_fd, 10) < 0) {
+//         std::perror("listen");
+//         std::exit(EXIT_FAILURE);
+//     }
+
+//     // Preparar el conjunto de clientes con el socket del servidor
+//     struct pollfd pfd;
+//     pfd.fd = server_fd;
+//     pfd.events = POLLIN;
+//     clients.push_back(pfd);
+
+//     std::cout << "IRC Server running on port " << port << " and awaiting connections..." << std::endl;
+// }
 
 BookClient& IRCServer::getClientsBook()
 {
@@ -127,34 +177,37 @@ IRCServer::~IRCServer()
 
 // Solicitar el nickname
 
-void IRCServer::acceptClient() 
-{
+void IRCServer::acceptClient() {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
-    int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-    if (client_fd < 0) {
-        std::perror("accept");
-        return;
+    
+    while (true) {
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+        if (client_fd < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            std::perror("accept");
+            break;
+        }
+
+        // CORRECCIÓN: Uso directo de F_SETFL con O_NONBLOCK
+        if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0) {
+            std::perror("fcntl");
+            close(client_fd);
+            continue;
+        }
+
+        // Añadir a la lista de poll
+        struct pollfd pfd;
+        pfd.fd = client_fd;
+        pfd.events = POLLIN;
+        clients.push_back(pfd);
+
+        // Registrar cliente
+        clients_info.addClient(client_fd, "", "", WAITING_PASSWORD);
+
+        const char* welcome_msg = "Welcome to the IRC Server! Please enter the password:\n";
+        send(client_fd, welcome_msg, strlen(welcome_msg), 0);
     }
-
-    int flags = fcntl(client_fd, F_GETFL, 0);
-    if (flags < 0 || fcntl(client_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        std::perror("fcntl");
-        close(client_fd);
-        return;
-    }
-
-    // Añadir a la lista de clientes para poll
-    struct pollfd pfd;
-    pfd.fd = client_fd;
-    pfd.events = POLLIN;
-    clients.push_back(pfd);
-
-    // Añadir cliente en estado de espera de contraseña
-    clients_info.addClient(client_fd, "", "", WAITING_PASSWORD);
-
-    const char* welcome_msg = "Welcome to the IRC Server! Please enter the password:\n";
-    send(client_fd, welcome_msg, strlen(welcome_msg), 0);
 }
 
 
