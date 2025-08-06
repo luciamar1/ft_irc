@@ -1,0 +1,12 @@
+hay que probar la conexion de tres formas :
+
+localmente ✅
+    nc localhost (puerto (6666))
+
+desde otra maquina ✅)
+    descubrimos la ip local 
+        ip addr | grep "inet " | grep -v 127.0.0.1
+    nos conectamos usando esa ip que nos da el comando 
+        nc (ip)  (puerto (6666))
+
+usando la ip publica

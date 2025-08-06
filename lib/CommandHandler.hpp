@@ -31,10 +31,13 @@ public:
     void handleKickCommand(int client_fd, const std::string& channel_name, const std::string& user, const std::string& reason, IRCServer& server);
     void handleInviteCommand(int client_fd, const std::string& nick, const std::string& channel_name, IRCServer& server);
     void handleTopicCommand(int client_fd, const std::string& channel_name, const std::string& new_topic, IRCServer& server); 
-private:
+    void safeSend(int client_fd, const std::string& message, IRCServer& server);
+
+    private:
     // Helper para enviar errores
-    void sendError(int client_fd, const std::string& code, const std::string& msg);
-};
+    void sendError(int client_fd, const std::string& code, const std::string& msg, IRCServer& server);
+};  
+
 
 #endif
 

@@ -139,11 +139,7 @@ void Channel::sendToAll(const std::string& message, Client* sender)
         if (sender && client == sender)
             continue;
 
-        ssize_t bytes_sent = send(client->getFd(), message.c_str(), message.length(), 0);
-        if (bytes_sent == -1) {
-            std::cerr << "Failed to send message to fd " << client->getFd() << std::endl;
-            // opcional: puedes marcar al cliente como desconectado, etc.
-        }
+        client->getOutputBuffer() += message; 
     }
 }
 

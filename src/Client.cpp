@@ -62,3 +62,12 @@ bool Client::isInChannel(const std::string& channelName) const {
 const std::set<std::string>& Client::getJoinedChannels() const {
     return joinedChannels;
 }
+
+std::string& Client::getOutputBuffer() 
+{ 
+    return output_buffer; 
+}
+
+void Client::safeSend(const std::string& message) {
+    output_buffer += message;
+}

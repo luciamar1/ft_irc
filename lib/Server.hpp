@@ -25,6 +25,8 @@ public:
     IRCServer(int port, const std::string& password);
     ~IRCServer();
 
+    void safeSend(int client_fd, const std::string& message);
+
     // Métodos para manejar clientes y mensajes
     void acceptClient();
     void removeClient(int client_fd);

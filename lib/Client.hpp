@@ -21,11 +21,14 @@ private:
     std::string buffer;
     AuthStage stage;
     std::set<std::string> joinedChannels;
-
+    std::string output_buffer; 
 public:
     static const size_t MAX_BUFFER_SIZE = 10240;
     Client();
     Client(int fd, std::string _nick,std::string _user,  AuthStage _stage = WAITING_PASSWORD);
+
+    std::string& getOutputBuffer();
+    void safeSend(const std::string& message);
 
     int getFd() const;
     void setFd(int _fd);
