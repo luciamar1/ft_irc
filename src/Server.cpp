@@ -132,7 +132,8 @@ void IRCServer::acceptClient() {
         clients_info.addClient(client_fd, "", "", WAITING_PASSWORD);
 
         // Usar safeSend en lugar de send directo
-        safeSend(client_fd, "Welcome to the IRC Server! Please enter the password:\n");
+        //safeSend(client_fd, "Welcome to the IRC Server! Please enter the password:\n");
+        std::cout << "New connection on fd " << client_fd << std::endl;
     }
 }
 
@@ -260,19 +261,121 @@ void IRCServer::run() {
 }
 
 
+// void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
+//     char buffer[512];
+//     memset(buffer, 0, sizeof(buffer));
+//     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+
+//     if (bytes_received < 0) {
+//         if (errno == EAGAIN || errno == EWOULDBLOCK)
+//             return;  // No hay datos ahora
+//         std::perror("recv handleClientData");
+//         removeClient(client_fd);
+//         return;
+//     }
+//     if (bytes_received == 0) {
+//         removeClient(client_fd);
+//         return;
+//     }
+
+//     buffer[bytes_received] = '\0';
+//     Client* client = clients_info.getClient(client_fd);
+//     if (!client) return;
+
+//     // ========= PROTECCIÓN CONTRA DoS ========= //
+//     // Verificar si el nuevo dato excede el límite del buffer
+//     if (client->getBuffer().size() + bytes_received > Client::MAX_BUFFER_SIZE) {
+//         std::cerr << "Client fd " << client_fd << " exceeded buffer limit (" 
+//                   << Client::MAX_BUFFER_SIZE << " bytes). Disconnecting." << std::endl;
+//         removeClient(client_fd);
+//         return;
+//     }
+    
+//     // Añadir datos al buffer
+//     client->getBuffer() += buffer;
+    
+//     // Procesar líneas completas
+//     size_t pos;
+//     while ((pos = client->getBuffer().find('\n')) != std::string::npos) {
+//         std::string line = client->getBuffer().substr(0, pos);
+//         client->getBuffer().erase(0, pos + 1);
+//         line.erase(line.find_last_not_of("\r\n") + 1);
+
+//         if (client->getStage() == WAITING_PASSWORD) {
+//             if (line != password) {
+//                 // CAMBIO: send -> safeSend
+//                 safeSend(client_fd, "Incorrect password. Connection closed.\n");
+//                 removeClient(client_fd);
+//                 return;
+//             }
+//             client->setStage(WAITING_NICKNAME);
+//             // CAMBIO: send -> safeSend
+//             safeSend(client_fd, "Please enter your nickname:\n");
+//             return;
+//         }
+//         else if (client->getStage() == WAITING_NICKNAME) {
+//             line.erase(0, line.find_first_not_of(" "));
+//             line.erase(line.find_last_not_of(" ") + 1);
+//             if (line.empty() || clients_info.nickExists(line)) {
+//                 // CAMBIO: send -> safeSend
+//                 safeSend(client_fd, "Nickname invalid or taken. Try again:\n");
+//                 return;
+//             }
+//             client->setNickname(line);
+//             client->setStage(WAITING_USERNAME);
+//             // CAMBIO: send -> safeSend
+//             safeSend(client_fd, "Please enter your real name:\n");
+//             return;
+//         }
+//         else if (client->getStage() == WAITING_USERNAME) {
+//             line.erase(0, line.find_first_not_of(" "));
+//             line.erase(line.find_last_not_of(" ") + 1);
+//             if (line.empty() ) {
+//                 // CAMBIO: send -> safeSend
+//                 safeSend(client_fd, "Empty username. Try again:\n");
+//                 return;
+//             }
+//             client->setRealname(line);
+//             client->setStage(CONNECTED);
+//             // Mantengo tu mensaje original con fd
+//             std::cout << "New client " << line << " connected with fd " << client_fd << ".\n";
+//             // CAMBIO: send -> safeSend
+//             safeSend(client_fd, "You have successfully authenticated and joined the server.\n");
+//             return;
+//         }
+//         else if (client->getStage() == CONNECTED) {
+//             // MANTENGO TODO TU FORMATO COLORIDO ORIGINAL
+//             std::string sender_nick = client->getNickname();
+//             std::string full_message = "[Message from: " + sender_nick + "]: " + line + "\n";
+
+//             std::cout << "--------------------------------------------\n";
+//             std::cout << "[Message from: \033[1;34m" << sender_nick << "\033[0m]\n";
+//             std::cout << "--------------------------------------------\n";
+//             std::cout << "\033[1;32m" << line << "\033[0m\n";
+//             std::cout << "--------------------------------------------\n";
+
+//             handler.handleClientMessage(client_fd, line, *this);
+//         }
+//     }
+
+//     // Verificación adicional para datos residuales sin \n
+//     if (client->getBuffer().size() > Client::MAX_BUFFER_SIZE) {
+//         // Mantengo tu mensaje de error detallado original
+//         std::cerr << "Client fd " << client_fd << " buffer overflow (" 
+//                   << client->getBuffer().size() << " > " 
+//                   << Client::MAX_BUFFER_SIZE << "). Disconnecting." << std::endl;
+//         removeClient(client_fd);
+//         return;
+//     }
+// }
 void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
     char buffer[512];
     memset(buffer, 0, sizeof(buffer));
     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytes_received < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return;  // No hay datos ahora
-        std::perror("recv handleClientData");
-        removeClient(client_fd);
-        return;
-    }
-    if (bytes_received == 0) {
+    if (bytes_received <= 0) {
+        if (bytes_received < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            return;
         removeClient(client_fd);
         return;
     }
@@ -281,16 +384,13 @@ void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
     Client* client = clients_info.getClient(client_fd);
     if (!client) return;
 
-    // ========= PROTECCIÓN CONTRA DoS ========= //
-    // Verificar si el nuevo dato excede el límite del buffer
+    // Protección contra DoS
     if (client->getBuffer().size() + bytes_received > Client::MAX_BUFFER_SIZE) {
-        std::cerr << "Client fd " << client_fd << " exceeded buffer limit (" 
-                  << Client::MAX_BUFFER_SIZE << " bytes). Disconnecting." << std::endl;
+        std::cerr << "Buffer overflow for fd " << client_fd << std::endl;
         removeClient(client_fd);
         return;
     }
     
-    // Añadir datos al buffer
     client->getBuffer() += buffer;
     
     // Procesar líneas completas
@@ -298,72 +398,175 @@ void IRCServer::handleClientData(int client_fd, CommandHandler &handler) {
     while ((pos = client->getBuffer().find('\n')) != std::string::npos) {
         std::string line = client->getBuffer().substr(0, pos);
         client->getBuffer().erase(0, pos + 1);
-        line.erase(line.find_last_not_of("\r\n") + 1);
+        
+        // Limpiar CR/LF
+        size_t cr_pos = line.find('\r');
+        if (cr_pos != std::string::npos)
+            line.erase(cr_pos);
+            
+        if (line.empty()) continue;
 
-        if (client->getStage() == WAITING_PASSWORD) {
-            if (line != password) {
-                // CAMBIO: send -> safeSend
-                safeSend(client_fd, "Incorrect password. Connection closed.\n");
+        std::cout << "[RECV] fd=" << client_fd << " : " << line << std::endl;
+
+        // Si está conectado, procesar comandos normalmente
+        if (client->getStage() == CONNECTED) {
+            handler.handleClientMessage(client_fd, line, *this);
+            continue;
+        }
+
+        // Parsear comando
+        CommandHandler::ParsedMessage parsed = CommandHandler::parseMessage(line);
+        
+        // MANEJAR COMANDOS CAP (ignorar pero no desconectar)
+        if (parsed.command == "CAP") {
+            // Simplemente ignorar comandos CAP
+            continue;
+        }
+        
+        // COMANDO PASS
+        if (parsed.command == "PASS") {
+            std::string pass = parsed.params.empty() ? "" : parsed.params[0];
+            
+            // Si no hay password en params, buscar en trailing
+            if (pass.empty() && !parsed.trailing.empty()) {
+                pass = parsed.trailing;
+            }
+            
+            if (pass == password) {
+                client->setStage(WAITING_NICKNAME);
+                std::cout << "[AUTH] Password OK for fd " << client_fd << std::endl;
+            } 
+            else 
+            {
+                // IMPORTANTE: Enviar error ANTES de desconectar
+                safeSend(client_fd, ":server 464 * :Password incorrect\r\n");
+        
+                // Dar tiempo para que se envíe el mensaje
+                // Procesar buffer de salida antes de cerrar
+                std::string& output = client->getOutputBuffer();
+                if (!output.empty()) {
+                    send(client_fd, output.c_str(), output.size(), MSG_NOSIGNAL);
+                }
+                
+                // Ahora sí, desconectar
                 removeClient(client_fd);
+                        // safeSend(client_fd, "ERROR :Password incorrect\r\n");
+                        // removeClient(client_fd);
                 return;
             }
-            client->setStage(WAITING_NICKNAME);
-            // CAMBIO: send -> safeSend
-            safeSend(client_fd, "Please enter your nickname:\n");
-            return;
+            continue;
+        }
+        
+        // COMANDO NICK
+        if (parsed.command == "NICK") {
+            std::string nick = parsed.params.empty() ? "" : parsed.params[0];
+            
+            if (nick.empty()) {
+                safeSend(client_fd, ":server 431 * :No nickname given\r\n");
+                continue;
+            }
+            
+            if (clients_info.nickExists(nick)) {
+                safeSend(client_fd, ":server 433 * " + nick + " :Nickname is already in use\r\n");
+                continue;
+            }
+            
+            client->setNickname(nick);
+            
+            // Si todavía esperamos password, avanzar el estado
+            if (client->getStage() == WAITING_PASSWORD && password.empty()) {
+                client->setStage(WAITING_USERNAME);
+            } else if (client->getStage() == WAITING_NICKNAME) {
+                client->setStage(WAITING_USERNAME);
+            }
+            
+            std::cout << "[AUTH] Nick set to '" << nick << "' for fd " << client_fd << std::endl;
+            
+            // Verificar si ya tenemos USER
+            if (!client->getRealname().empty()) {
+                // Ya tenemos todo, conectar
+                client->setStage(CONNECTED);
+                std::string nick = client->getNickname();
+                safeSend(client_fd, ":server 001 " + nick + " :Welcome to the IRC Server\r\n");
+                safeSend(client_fd, ":server 002 " + nick + " :Your host is server\r\n");
+                safeSend(client_fd, ":server 003 " + nick + " :This server was created today\r\n");
+                safeSend(client_fd, ":server 004 " + nick + " server 1.0 o o\r\n");
+                std::cout << "[CONNECTED] Client " << nick << " on fd " << client_fd << std::endl;
+            }
+            continue;
+        }
+        
+        // COMANDO USER
+        if (parsed.command == "USER") {
+            if (parsed.params.size() < 4 && parsed.trailing.empty()) {
+                safeSend(client_fd, ":server 461 * USER :Not enough parameters\r\n");
+                continue;
+            }
+            
+            std::string username = parsed.params.empty() ? "unknown" : parsed.params[0];
+            std::string realname = parsed.trailing;
+            
+            if (realname.empty() && parsed.params.size() >= 4) {
+                realname = parsed.params[3];
+            }
+            
+            if (realname.empty()) {
+                realname = username;
+            }
+            
+            client->setRealname(realname);
+            
+            // Si todavía esperamos password y no hay password configurada
+            if (client->getStage() == WAITING_PASSWORD && password.empty()) {
+                client->setStage(WAITING_USERNAME);
+            }
+            
+            std::cout << "[AUTH] User/Realname set to '" << realname << "' for fd " << client_fd << std::endl;
+            
+            // Verificar si ya tenemos NICK
+            if (!client->getNickname().empty()) {
+                // Verificar password si es necesaria
+                if (!password.empty() && client->getStage() == WAITING_PASSWORD) {
+                    safeSend(client_fd, "ERROR :Password required\r\n");
+                    removeClient(client_fd);
+                    return;
+                }
+                
+                // Conectar cliente
+                client->setStage(CONNECTED);
+                std::string nick = client->getNickname();
+                safeSend(client_fd, ":server 001 " + nick + " :Welcome to the IRC Server\r\n");
+                safeSend(client_fd, ":server 002 " + nick + " :Your host is server\r\n");
+                safeSend(client_fd, ":server 003 " + nick + " :This server was created today\r\n");
+                safeSend(client_fd, ":server 004 " + nick + " server 1.0 o o\r\n");
+                std::cout << "[CONNECTED] Client " << nick << " on fd " << client_fd << std::endl;
+            }
+            continue;
+        }
+        
+        // Para compatibilidad con nc (texto plano)
+        if (client->getStage() == WAITING_PASSWORD) {
+            if (line == password) {
+                client->setStage(WAITING_NICKNAME);
+                safeSend(client_fd, "Please enter your nickname:\n");
+            } else {
+                safeSend(client_fd, "Incorrect password. Try again:\n");
+            }
         }
         else if (client->getStage() == WAITING_NICKNAME) {
-            line.erase(0, line.find_first_not_of(" "));
-            line.erase(line.find_last_not_of(" ") + 1);
-            if (line.empty() || clients_info.nickExists(line)) {
-                // CAMBIO: send -> safeSend
-                safeSend(client_fd, "Nickname invalid or taken. Try again:\n");
-                return;
+            if (!clients_info.nickExists(line)) {
+                client->setNickname(line);
+                client->setStage(WAITING_USERNAME);
+                safeSend(client_fd, "Please enter your real name:\n");
+            } else {
+                safeSend(client_fd, "Nickname taken. Try again:\n");
             }
-            client->setNickname(line);
-            client->setStage(WAITING_USERNAME);
-            // CAMBIO: send -> safeSend
-            safeSend(client_fd, "Please enter your real name:\n");
-            return;
         }
         else if (client->getStage() == WAITING_USERNAME) {
-            line.erase(0, line.find_first_not_of(" "));
-            line.erase(line.find_last_not_of(" ") + 1);
-            if (line.empty() ) {
-                // CAMBIO: send -> safeSend
-                safeSend(client_fd, "Empty username. Try again:\n");
-                return;
-            }
             client->setRealname(line);
             client->setStage(CONNECTED);
-            // Mantengo tu mensaje original con fd
-            std::cout << "New client " << line << " connected with fd " << client_fd << ".\n";
-            // CAMBIO: send -> safeSend
-            safeSend(client_fd, "You have successfully authenticated and joined the server.\n");
-            return;
+            safeSend(client_fd, "Successfully connected!\n");
+            std::cout << "[CONNECTED via nc] " << client->getNickname() << std::endl;
         }
-        else if (client->getStage() == CONNECTED) {
-            // MANTENGO TODO TU FORMATO COLORIDO ORIGINAL
-            std::string sender_nick = client->getNickname();
-            std::string full_message = "[Message from: " + sender_nick + "]: " + line + "\n";
-
-            std::cout << "--------------------------------------------\n";
-            std::cout << "[Message from: \033[1;34m" << sender_nick << "\033[0m]\n";
-            std::cout << "--------------------------------------------\n";
-            std::cout << "\033[1;32m" << line << "\033[0m\n";
-            std::cout << "--------------------------------------------\n";
-
-            handler.handleClientMessage(client_fd, line, *this);
-        }
-    }
-
-    // Verificación adicional para datos residuales sin \n
-    if (client->getBuffer().size() > Client::MAX_BUFFER_SIZE) {
-        // Mantengo tu mensaje de error detallado original
-        std::cerr << "Client fd " << client_fd << " buffer overflow (" 
-                  << client->getBuffer().size() << " > " 
-                  << Client::MAX_BUFFER_SIZE << "). Disconnecting." << std::endl;
-        removeClient(client_fd);
-        return;
     }
 }

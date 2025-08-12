@@ -481,7 +481,19 @@ std::string cleanInput(const std::string& input)
 void CommandHandler::handleClientMessage(int client_fd, const std::string& message, IRCServer& server) {
     std::string cleaned_msg = cleanInput(message);
     ParsedMessage parsed = parseMessage(cleaned_msg);
-
+    if (parsed.command == "PING") {
+        std::string param = parsed.params.empty() ? "server" : parsed.params[0];
+        if (parsed.params.empty() && !parsed.trailing.empty()) {
+            param = parsed.trailing;
+        }
+        safeSend(client_fd, "PONG :" + param + "\r\n", server);
+        return;
+    }
+    
+    // Ignorar PONG (respuesta del cliente)
+    if (parsed.command == "PONG") {
+        return;
+    }
     if (parsed.command == "NICK") {
         handleNickCommand(client_fd, parsed.params.empty() ? "" : parsed.params[0], server);
     } 
